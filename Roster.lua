@@ -127,10 +127,9 @@ local function refreshPanel()
         -- 2. Fallback to local save
         elseif rec and rec.joinDateExact and rec.joinDate then
             joinDisplay = rec.joinDate
-            end
+        end
+        panel.joinedText:SetText(("|cffffcc00Joined:|r %s"):format(joinDisplay))
 
-            panel.joinedText:SetText(("|cffffcc00Joined:|r %s"):format(joinDisplay))
-    panel.joinedText:SetText(("|cffffcc00Joined:|r %s"):format(joinDisplay))
     local seenStr = info.online and "Online" or fmtSince(rec and rec.lastOnline)
     panel.lastSeenText:SetText(("|cffffcc00Last seen:|r %s"):format(seenStr))
     panel.zoneText:SetText(("|cffffcc00Zone:|r %s"):format(

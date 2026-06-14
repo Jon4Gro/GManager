@@ -2,21 +2,20 @@
 -- Five tabs: Log, Roster, Alts, Macros, Ranks. Plain Wrath 3.3.5a frame API.
 -- No OnKeyDown on Frames, no post-Wrath templates.
 -- Added "Refresh List" functionality for the Ranks tab.
--- Added "ONote Empty Newbies" to insert Today Date into OfficerNote if completly Empty
+-- Added "ONote Empty Newbies" to insert Today Date into OfficerNote if completely Empty
 
 GManager = GManager or {}
 GManager.UI = {}
 local UI    = GManager.UI
 local addon = GManager
 local rosterOfflineDaysSearch = ""
+
 -- =========================================================
 -- Constants
 -- =========================================================
 local ROW_HEIGHT = 15
 local ROW_COUNT  = 18
 
--- Per-column widths used by the Roster view (header + each row cell).
--- All values are pixels. The order here MUST match the header build order.
 local COL_DEFS = {
     { key = "lvl",    label = "Lvl",         sort = "level",    width = 18  },
     { key = "name",   label = "Name",        sort = "name",     width = 94 },
@@ -82,14 +81,12 @@ local CLASS_COLOR = {
 -- =========================================================
 -- UI state
 -- =========================================================
-local activeView   = "LOG"   -- "LOG", "ROSTER", "ALTS", "MACROS", "RANKS"
+local activeView   = "LOG"
 
--- Macros tab state
 local CHANNEL_OPTIONS = { "1","2","3","4","5","6","7","8","9",
                          "GUILD","OFFICER","SAY","PARTY","RAID","YELL" }
 local macroSelectedChannel = "GUILD"
 
--- Log view
 local typeFilters = {
     SEEN = true, JOIN = true, LEAVE = true,
     PROMOTE = true, DEMOTE = true,
@@ -98,20 +95,18 @@ local typeFilters = {
 local logSearchText = ""
 local showLineNumbers = true
 
--- Roster view
 local rosterShowOffline    = true
 local rosterPlayerSearch   = ""
 local rosterNoteSearch     = ""
-local rosterSortBy         = "name"   -- "level" | "name" | "online" | "rank"
+local rosterSortBy         = "name"
 local rosterSortReverse    = false
 local groupAltsWithMain    = false
 
--- Ranks (Mass Promote) view
 local ranksTargetRankIndex = nil
 local ranksMinDays         = ""
 local ranksMaxOffline      = ""
 
-local frame  -- main frame, lazy-built
+local frame
 
 -- =========================================================
 -- Right-click context menu (Roster rows)
@@ -119,18 +114,14 @@ local frame  -- main frame, lazy-built
 local contextMenuFrame
 
 local function showRosterContextMenu(name)
-
     if not name or name == "" then return end
     if not contextMenuFrame then
-        contextMenuFrame = CreateFrame("Frame", "GManagerRosterContextMenu",
-                                       UIParent, "UIDropDownMenuTemplate")
+        contextMenuFrame = CreateFrame("Frame", "GManagerRosterContextMenu", UIParent, "UIDropDownMenuTemplate")
     end
 
     local isSelf = (name == UnitName("player"))
     local canPromote = CanGuildPromote and CanGuildPromote() and not isSelf
     local canDemote  = CanGuildDemote  and CanGuildDemote()  and not isSelf
-
-
 
     local menu = {
         { text = name, isTitle = true, notCheckable = true },
@@ -138,8 +129,8 @@ local function showRosterContextMenu(name)
             text = addon:IsWhitelisted(name) and "Remove from Whitelist" or "Add to Whitelist",
             notCheckable = true,
             func = function()
-            addon:ToggleWhitelist(name)
-            UI:Refresh()
+                addon:ToggleWhitelist(name)
+                UI:Refresh()
             end,
         },
         {
@@ -153,14 +144,13 @@ local function showRosterContextMenu(name)
                     OnAccept = function()
                         if GuildPromote then GuildPromote(name) end
                         if addon.RequestRosterAfterAction then addon:RequestRosterAfterAction()
-                        elseif addon.RequestRoster then addon:RequestRoster() else GuildRoster() end
+                        else GuildRoster() end
                     end,
                     timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
                 }
                 StaticPopup_Show("GManager_CONFIRM_PROMOTE")
             end,
         },
-
         {
             text = "Demote",
             notCheckable = true,
@@ -172,7 +162,7 @@ local function showRosterContextMenu(name)
                     OnAccept = function()
                         if GuildDemote then GuildDemote(name) end
                         if addon.RequestRosterAfterAction then addon:RequestRosterAfterAction()
-                        elseif addon.RequestRoster then addon:RequestRoster() else GuildRoster() end
+                        else GuildRoster() end
                     end,
                     timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
                 }
@@ -197,7 +187,6 @@ local function showRosterContextMenu(name)
         },
         { text = "Cancel", notCheckable = true, func = function() end },
     }
-
     EasyMenu(menu, contextMenuFrame, "cursor", 0, 0, "MENU")
 end
 
@@ -240,10 +229,10 @@ local function lastSeenColor(epoch, online)
     if online then return "|cff44ff44" end
     if not epoch then return "|cff888888" end
     local d = time() - epoch
-    if d < 86400   then return "|cff99ff99" end  -- < 1 day
-    if d < 604800  then return "|cffffffff" end  -- < 7 days
-    if d < 2592000 then return "|cffffff66" end  -- < 30 days
-    if d < 7776000 then return "|cffffaa00" end  -- < 90 days
+    if d < 86400   then return "|cff99ff99" end
+    if d < 604800  then return "|cffffffff" end
+    if d < 2592000 then return "|cffffff66" end
+    if d < 7776000 then return "|cffffaa00" end
     return "|cffff4444"
 end
 
@@ -270,7 +259,6 @@ local function ProcessBatch(actionName, list, actionFunc)
 
     processor:SetScript("OnUpdate", function(self, elapsed)
         timer = timer + elapsed
-        -- Trigger immediately on first run, then every 1.0 seconds
         if timer >= 1.0 or currentIdx == 1 then
             timer = 0
             local endIdx = math.min(currentIdx + batchSize - 1, total)
@@ -290,14 +278,14 @@ local function ProcessBatch(actionName, list, actionFunc)
                 self:SetScript("OnUpdate", nil)
                 print("|cff00ff00GManager:|r All " .. actionName .. " operations completed.")
                 if GManager.RequestRosterAfterAction then GManager:RequestRosterAfterAction()
-                elseif GManager.RequestRoster then GManager:RequestRoster() else GuildRoster() end
+                else GuildRoster() end
             end
         end
     end)
 end
 
 -- =========================================================
--- Window build (lazy)
+-- Window build
 -- =========================================================
 local function build()
     if frame then return frame end
@@ -331,6 +319,11 @@ local function build()
     rightHeader:SetJustifyH("RIGHT")
     f.rightHeader = rightHeader
 
+    local rrightHeader = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    rrightHeader:SetPoint("TOPRIGHT", -34, -34)
+    rrightHeader:SetJustifyH("RIGHT")
+    f.rrightHeader = rrightHeader
+
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 2)
 
@@ -352,7 +345,7 @@ local function build()
     f.tabAlts   = makeViewBtn("Alts",   "ALTS")
     f.tabMacros = makeViewBtn("Macros", "MACROS")
     f.tabRanks  = makeViewBtn("Ranks",  "RANKS")
-    
+
     f.tabLog:SetPoint("TOPLEFT", 16, -44)
     f.tabRoster:SetPoint("TOPLEFT", f.tabLog,    "TOPRIGHT", 4, 0)
     f.tabAlts:SetPoint("TOPLEFT",   f.tabRoster, "TOPRIGHT", 4, 0)
@@ -491,14 +484,13 @@ local function build()
     f.rosterOffDaysLabel = rosterOffDaysLabel
 
     f.rosterONoteEmptyBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.rosterONoteEmptyBtn:SetSize(140, 22)
+    f.rosterONoteEmptyBtn:SetSize(136, 23)
     f.rosterONoteEmptyBtn:SetPoint("LEFT", f.rosterOffDaysLabel, "Left", -30, -39)
     f.rosterONoteEmptyBtn:SetText("ONote Empty Newbies")
     f.rosterONoteEmptyBtn:SetScript("OnClick", function()
         local list = {}
         for i = 1, GetNumGuildMembers() do
             local name, _, _, _, _, _, _, onote = GetGuildRosterInfo(i)
-            -- Target only members whose Officer Note is strictly empty
             if name and (not onote or onote == "") then
                 table.insert(list, {name = name})
             end
@@ -514,11 +506,9 @@ local function build()
 
         StaticPopupDialogs["GManager_CONFIRM_ONOTE_EMPTY"] = {
             text = "Insert today's date " .. dateTag .. " for |cffffff00" .. #list .. "|r members?\n(Max 15 per second)",
-            button1 = "Proceed",
-            button2 = "Cancel",
+            button1 = "Proceed", button2 = "Cancel",
             OnAccept = function()
                 ProcessBatch("ONote Empty", list, function(name)
-                    -- We must find the index again as GuildRosterSetOfficerNote requires index
                     for i = 1, GetNumGuildMembers() do
                         if GetGuildRosterInfo(i) == name then
                             GuildRosterSetOfficerNote(i, dateTag)
@@ -532,10 +522,9 @@ local function build()
         StaticPopup_Show("GManager_CONFIRM_ONOTE_EMPTY")
     end)
 
-    -- The Mass Kick Button
     f.rosterMassKickBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.rosterMassKickBtn:SetSize(130, 26)
-    f.rosterMassKickBtn:SetPoint("LEFT", rosterNSearchLabel, "LEFT", 22, -366)
+    f.rosterMassKickBtn:SetSize(110, 21)
+    f.rosterMassKickBtn:SetPoint("LEFT", f.rosterONoteEmptyBtn, "RIGHT", 28, 0)
     f.rosterMassKickBtn:SetText("Mass Kick List")
     f.rosterMassKickBtn:SetScript("OnClick", function()
         local rows = addon.RosterRowsCache or {}
@@ -548,17 +537,15 @@ local function build()
 
         StaticPopupDialogs["GManager_CONFIRM_MASS_KICK"] = {
             text = "WARNING: Kick |cffffff00" .. #rows .. "|r currently filtered members?\n(Max 15 per second)",
-            button1 = "KICK ALL",
-            button2 = "Cancel",
+            button1 = "KICK ALL", button2 = "Cancel",
             OnAccept = function()
                 StaticPopupDialogs["GManager_CONFIRM_MASS_KICK_2"] = {
                     text = "SECOND CONFIRMATION: Are you absolutely sure? This cannot be undone.",
-                    button1 = "YES, KICK",
-                    button2 = "Cancel",
+                    button1 = "YES, KICK", button2 = "Cancel",
                     OnAccept = function()
-                    ProcessBatch("Mass Kick", rows, function(name)
-                    if not addon:IsWhitelisted(name) then -- Whitelist check
-                        if GuildUninvite then GuildUninvite(name) end
+                        ProcessBatch("Mass Kick", rows, function(name)
+                            if not addon:IsWhitelisted(name) then
+                                if GuildUninvite then GuildUninvite(name) end
                             end
                         end)
                     end,
@@ -575,22 +562,22 @@ local function build()
     f.ranksHeaderPanel = CreateFrame("Frame", nil, f)
     f.ranksHeaderPanel:SetSize(860, 44)
     f.ranksHeaderPanel:SetPoint("TOPLEFT", f.tabLog, "BOTTOMLEFT", 0, -10)
-    
+
     f.ranksRankLabel = f.ranksHeaderPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.ranksRankLabel:SetPoint("TOPLEFT", 4, -10)
     f.ranksRankLabel:SetText("Rank to Promote FROM:")
-    
+
     f.ranksRankPrev = CreateFrame("Button", nil, f.ranksHeaderPanel, "UIPanelButtonTemplate")
     f.ranksRankPrev:SetSize(24, 22)
     f.ranksRankPrev:SetText("<")
     f.ranksRankPrev:SetPoint("TOPLEFT", f.ranksRankLabel, "RIGHT", 4, 10)
-    
+
     f.ranksRankDisplay = f.ranksHeaderPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.ranksRankDisplay:SetPoint("LEFT", f.ranksRankPrev, "RIGHT", 10, 0)
     f.ranksRankDisplay:SetWidth(80)
     f.ranksRankDisplay:SetJustifyH("CENTER")
     f.ranksRankDisplay:SetText("Loading...")
-    
+
     f.ranksRankNext = CreateFrame("Button", nil, f.ranksHeaderPanel, "UIPanelButtonTemplate")
     f.ranksRankNext:SetSize(24, 22)
     f.ranksRankNext:SetText(">")
@@ -607,7 +594,7 @@ local function build()
         end
         if ranksTargetRankIndex < 1 then ranksTargetRankIndex = 1 end
         if ranksTargetRankIndex > maxRanks - 1 then ranksTargetRankIndex = maxRanks - 1 end
-        
+
         f.ranksRankDisplay:SetText(GuildControlGetRankName(ranksTargetRankIndex + 1) or "?")
     end
 
@@ -618,7 +605,7 @@ local function build()
         updateRankDisplay()
         UI:Refresh()
     end)
-    
+
     f.ranksRankNext:SetScript("OnClick", function()
         ranksTargetRankIndex = (ranksTargetRankIndex or 1) + 1
         local maxRanks = GuildControlGetNumRanks() or 0
@@ -634,11 +621,11 @@ local function build()
     f.ranksDaysJoinInput:SetNumeric(true)
     f.ranksDaysJoinInput:SetText(ranksMinDays)
     f.ranksDaysJoinInput:SetScript("OnTextChanged", function(self) ranksMinDays = self:GetText(); UI:Refresh() end)
-    
+
     f.ranksDaysJoinLabel = f.ranksHeaderPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.ranksDaysJoinLabel:SetPoint("BOTTOMLEFT", f.ranksDaysJoinInput, "TOPLEFT", -4, 2)
     f.ranksDaysJoinLabel:SetText(" Min Days Joined")
-    
+
     f.ranksMaxOfflineInput = CreateFrame("EditBox", "GManagerRanksMaxOffline", f.ranksHeaderPanel, "InputBoxTemplate")
     f.ranksMaxOfflineInput:SetSize(60, 20)
     f.ranksMaxOfflineInput:SetPoint("LEFT", f.ranksDaysJoinInput, "RIGHT", 60, 0)
@@ -646,18 +633,11 @@ local function build()
     f.ranksMaxOfflineInput:SetNumeric(true)
     f.ranksMaxOfflineInput:SetText(ranksMaxOffline)
     f.ranksMaxOfflineInput:SetScript("OnTextChanged", function(self) ranksMaxOffline = self:GetText(); UI:Refresh() end)
-    
+
     f.ranksMaxOfflineLabel = f.ranksHeaderPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.ranksMaxOfflineLabel:SetPoint("BOTTOMLEFT", f.ranksMaxOfflineInput, "TOPLEFT", -4, 2)
     f.ranksMaxOfflineLabel:SetText("Max Offline Days (Exclude)")
---[[
-    f.ranksRefreshBtn = CreateFrame("Button", nil, f.ranksHeaderPanel, "UIPanelButtonTemplate")
-    f.ranksRefreshBtn:SetSize(70, 26)
-    f.ranksRefreshBtn:SetPoint("LEFT", f.ranksMaxOfflineInput, "RIGHT", 20, 0)
-    f.ranksRefreshBtn:SetText("Refresh")
-    f.ranksRefreshBtn:SetScript("OnClick", function() UI:Refresh() end)
-]]
-    -- FIXED: f.ranksPromoteBtn defined before f.ranksDateUnkBtn anchors to it
+
     f.ranksPromoteBtn = CreateFrame("Button", nil, f.ranksHeaderPanel, "UIPanelButtonTemplate")
     f.ranksPromoteBtn:SetSize(130, 26)
     f.ranksPromoteBtn:SetPoint("LEFT", f.ranksMaxOfflineInput , "LEFT", -20, -350)
@@ -671,12 +651,11 @@ local function build()
 
         StaticPopupDialogs["GManager_CONFIRM_MASS_PROMOTE"] = {
             text = "Are you sure you want to promote these |cffffff00" .. #rows .. "|r members?\nThis will process sequentially at 15 per second.",
-            button1 = "Promote All",
-            button2 = "Cancel",
+            button1 = "Promote All", button2 = "Cancel",
             OnAccept = function()
-            ProcessBatch("Mass Promote", rows, function(name)
-            if not addon:IsWhitelisted(name) then -- Whitelist check
-                if GuildPromote then GuildPromote(name) end
+                ProcessBatch("Mass Promote", rows, function(name)
+                    if not addon:IsWhitelisted(name) then
+                        if GuildPromote then GuildPromote(name) end
                     end
                 end)
             end,
@@ -915,13 +894,12 @@ local function build()
         end
         UI:Refresh()
     end)
+
     -- ===== Auto-Invite Settings (Bottom of Macros View) =====
-    -- Raised from 40 to 115 to give the cascading rows room to breathe
     f.autoInvLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.autoInvLabel:SetPoint("BOTTOMLEFT", 18, 40)
     f.autoInvLabel:SetText("Auto Guild Invite")
 
-    -- Fixed: Anchored to the RIGHT of the label instead of overlapping on the LEFT
     f.autoInvCB = CreateFrame("CheckButton", "GManagerAutoInvCB", f, "OptionsBaseCheckButtonTemplate")
     f.autoInvCB:SetSize(24, 24)
     f.autoInvCB:SetPoint("LEFT", f.autoInvLabel, "BOTTOMLEFT", 0, -13)
@@ -931,36 +909,35 @@ local function build()
     f.autoInvCBLabel:SetPoint("LEFT", f.autoInvCB, "RIGHT", 2, 1)
     f.autoInvCBLabel:SetText("Enable")
 
-    -- Helper to create EditBoxes (Updated to support flexible relative anchoring points)
     local function makeAutoInvEditBox(name, labelTxt, width, anchorFrame, relPoint, x, y, dbKey)
-    local bg = CreateFrame("Frame", nil, f)
-    bg:SetPoint("TOPLEFT", anchorFrame, relPoint, x, y)
-    bg:SetSize(width, 22)
-    bg:SetBackdrop(PANEL_BACKDROP)
-    bg:SetBackdropColor(0, 0, 0, 0.7)
-    bg:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+        local bg = CreateFrame("Frame", nil, f)
+        bg:SetPoint("TOPLEFT", anchorFrame, relPoint, x, y)
+        bg:SetSize(width, 22)
+        bg:SetBackdrop(PANEL_BACKDROP)
+        bg:SetBackdropColor(0, 0, 0, 0.7)
+        bg:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
 
-    local lbl = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    lbl:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", 0, 2)
-    lbl:SetText(labelTxt)
+        local lbl = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        lbl:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", 0, 2)
+        lbl:SetText(labelTxt)
 
-    local eb = CreateFrame("EditBox", name, bg)
-    eb:SetFontObject("ChatFontSmall")
-    eb:SetAutoFocus(false)
-    eb:SetPoint("TOPLEFT", 6, -3)
-    eb:SetPoint("BOTTOMRIGHT", -4, 3)
-    eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    eb:SetScript("OnTextChanged", function(self)
-    if dbKey then GManagerDB.autoInvite[dbKey] = self:GetText() end
+        local eb = CreateFrame("EditBox", name, bg)
+        eb:SetFontObject("ChatFontSmall")
+        eb:SetAutoFocus(false)
+        eb:SetPoint("TOPLEFT", 6, -3)
+        eb:SetPoint("BOTTOMRIGHT", -4, 3)
+        eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        eb:SetScript("OnTextChanged", function(self)
+            if dbKey and GManagerDB and GManagerDB.autoInvite then GManagerDB.autoInvite[dbKey] = self:GetText() end
         end)
-    return bg, eb, lbl
+        return bg, eb, lbl
     end
-    -- Phrase -> Auto-Reply -> Reply if OFF
-    f.aiPhraseBg, f.aiPhrase, f.aiPhraseLbl = makeAutoInvEditBox("GM_AI_Phrase", " Invite Phrase:", 80, f.autoInvCBLabel, "BOTTOMRIGHT", 36, 16, "/w Inv Phrase")
-    f.aiOnBg, f.aiOn, f.aiOnLbl             = makeAutoInvEditBox("GM_AI_On", " Auto-Reply:", 200, f.aiPhraseBg, "TOPRIGHT", 12, 0, "replyOn")
-    f.aiOffBg, f.aiOff, f.aiOffLbl          = makeAutoInvEditBox("GM_AI_Off", " Reply if OFF:", 200, f.aiOnBg, "TOPRIGHT", 12, 0, "replyOff")
-    f.aiLvlBg, f.aiLvl, f.aiLvlLbl          = makeAutoInvEditBox("GM_AI_Lvl", "Min Lvl:", 40, f.aiOffBg, "TOPRIGHT", 12, 0, "minLvl")
-    f.aiLowBg, f.aiLow, f.aiLowLbl          = makeAutoInvEditBox("GM_AI_Low", "Reply If too Low:", 200, f.aiLvlBg, "TOPRIGHT", 12, 0, "replyLow")
+
+    f.aiPhraseBg, f.aiPhrase, f.aiPhraseLbl = makeAutoInvEditBox("GM_AI_Phrase", " Invite Phrase:", 130, f.autoInvCBLabel, "BOTTOMRIGHT", 36, 16, "phrase")
+    f.aiOnBg, f.aiOn, f.aiOnLbl             = makeAutoInvEditBox("GM_AI_On", " Auto-Reply:", 190, f.aiPhraseBg, "TOPRIGHT", 10, 0, "replyOn")
+    f.aiOffBg, f.aiOff, f.aiOffLbl          = makeAutoInvEditBox("GM_AI_Off", " Reply if OFF:", 190, f.aiOnBg, "TOPRIGHT", 10, 0, "replyOff")
+    f.aiLvlBg, f.aiLvl, f.aiLvlLbl          = makeAutoInvEditBox("GM_AI_Lvl", "Min Lvl:", 40, f.aiOffBg, "TOPRIGHT", 10, 0, "minLvl")
+    f.aiLowBg, f.aiLow, f.aiLowLbl          = makeAutoInvEditBox("GM_AI_Low", "Reply If too Low:", 190, f.aiLvlBg, "TOPRIGHT", 10, 0, "replyLow")
 
     -- ===== Footer (Log mode) =====
     f.numberedCB = CreateFrame("CheckButton", "GManagerNumberedCB", f, "OptionsBaseCheckButtonTemplate")
@@ -976,9 +953,9 @@ local function build()
     f.numberedLabel:SetText("Numbered Lines")
 
     f.clearLogBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.clearLogBtn:SetSize(90, 22)
+    f.clearLogBtn:SetSize(150, 24)
     f.clearLogBtn:SetText("Clear Log")
-    f.clearLogBtn:SetPoint("BOTTOMRIGHT", f.listPanel, "BOTTOMRIGHT", -4, -28)
+    f.clearLogBtn:SetPoint("BOTTOMRIGHT", -18, 18)
     f.clearLogBtn:SetScript("OnClick", function()
         addon:ClearLog()
         UI:Refresh()
@@ -997,21 +974,95 @@ local function build()
     f.groupAltsLabel:SetPoint("LEFT", f.groupAltsCB, "RIGHT", 2, 0)
     f.groupAltsLabel:SetText("Group Alts With Main")
 
-    f.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.status:SetPoint("BOTTOMRIGHT", f.listPanel, "TOPRIGHT", 0, 2)
+    -- =========================================================
+    -- Group Auto-Invite Interface Checkbuttons & Field
+    -- =========================================================
+    f.groupInviteCheck = CreateFrame("CheckButton", "GManagerGroupInviteCheck", f, "InterfaceOptionsCheckButtonTemplate")
+    f.groupInviteCheck:SetPoint("LEFT", f.groupAltsLabel, "RIGHT", 28, -1)
+    GManagerGroupInviteCheckText:SetText("Auto Grp On/Off (for 15min)")
 
-    frame = f
+    f.groupInviteEditBoxLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.groupInviteEditBoxLabel:SetPoint("LEFT", GManagerGroupInviteCheckText , "RIGHT", 20, 0)
+    f.groupInviteEditBoxLabel:SetText("/w Phrase:")
+
+    f.groupInviteEditBox = CreateFrame("EditBox", "GManagerGroupInviteEditBox", f, "InputBoxTemplate")
+    f.groupInviteEditBox:SetSize(120, 20)
+    f.groupInviteEditBox:SetPoint("LEFT",  f.groupInviteEditBoxLabel , "RIGHT", 8, 0)
+    f.groupInviteEditBox:SetAutoFocus(false)
+    f.groupInviteEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.groupInviteEditBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    f.groupInviteEditBox:SetScript("OnTextChanged", function(self)
+    if GManagerDB and GManagerDB.autoInvite then
+        GManagerDB.autoInvite.groupinv = self:GetText() or ""
+        end
+        end)
+
+    f.groupInvitePermCheck = CreateFrame("CheckButton", "GManagerGroupInvitePermCheck", f, "InterfaceOptionsCheckButtonTemplate")
+    f.groupInvitePermCheck:SetPoint("LEFT", f.groupInviteEditBox, "RIGHT", 8, -1)
+    GManagerGroupInvitePermCheckText:SetText("Permanent")
+
+    f.groupInviteCheck:SetScript("OnClick", function(self)
+    local checked = self:GetChecked()
+    if checked then
+        addon.groupInvitePermanent = f.groupInvitePermCheck:GetChecked()
+        addon:StartGroupInvite(15)
+        else
+            addon:StopGroupInvite()
+            end
+            end)
+
+    f.groupInvitePermCheck:SetScript("OnClick", function(self)
+    local checked = self:GetChecked()
+    addon.groupInvitePermanent = checked
+    if f.groupInviteCheck:GetChecked() then
+        if checked then
+            print("|cFFFFCC00Guild Manager|r: Group Auto-Invite mode set to permanent.")
+            else
+                addon:StartGroupInvite(15)
+                end
+                end
+                end)
+
+    f:HookScript("OnShow", function()
+    f.groupInviteCheck:SetChecked(addon.groupInviteActive)
+    f.groupInvitePermCheck:SetChecked(addon.groupInvitePermanent)
+    if GManagerDB and GManagerDB.autoInvite then
+        f.groupInviteEditBox:SetText(GManagerDB.autoInvite.groupinv or "")
+        end
+        end)
+
+    -- ==========================================
+    -- SAFE BACKGROUND FRAME (Wrath Native API - No BackdropTemplate)
+    -- ==========================================
+    f.groupInviteBg = CreateFrame("Frame", nil, f)
+    f.groupInviteBg:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Buttons\\WHITE8X8", 
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    f.groupInviteBg:SetBackdropColor(0.05, 0.05, 0.05, 0.6)     
+    f.groupInviteBg:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8) 
+
+    f.groupInviteBg:SetPoint("TOPLEFT", f.groupInviteCheck, "TOPLEFT", -6, 5)
+    f.groupInviteBg:SetPoint("BOTTOMLEFT", f.groupInviteCheck, "BOTTOMLEFT", -6, -5)
+    f.groupInviteBg:SetPoint("RIGHT", GManagerGroupInvitePermCheckText, "RIGHT", 10, 0)
+
+    f.groupInviteBg:SetFrameLevel(math.max(0, f.groupInviteCheck:GetFrameLevel() - 1))
+    -- ==========================================
+
+    f.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.status:SetPoint("BOTTOMLEFT", 16, 14)
+
+    frame = f  -- assign to module-level var so UI:Refresh() can find it
     return f
-end
-
-
+    end
 -- =========================================================
 -- Ranks Date Parser (Helper)
 -- =========================================================
 local function parseJoinDateToDays(dateStr)
     if not dateStr then return -1 end
-    
-    -- Try modern Month DD YYYY format
+
     local m, d2, y2 = string.match(dateStr:lower(), "^(%S+)%s+(%d%d)%s+(%d%d%d%d)$")
     if m and d2 and y2 then
         local map = {
@@ -1022,14 +1073,13 @@ local function parseJoinDateToDays(dateStr)
         local ts = time({year=tonumber(y2), month=monthNum, day=tonumber(d2), hour=12, min=0, sec=0})
         if ts then return math.floor((time() - ts) / 86400) end
     end
-    
-    -- Try legacy YYYY-MM-DD
+
     local y, mStr, d = string.match(dateStr, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
     if y and mStr and d then
         local ts = time({year=tonumber(y), month=tonumber(mStr), day=tonumber(d), hour=12, min=0, sec=0})
         if ts then return math.floor((time() - ts) / 86400) end
     end
-    
+
     return -1
 end
 
@@ -1040,27 +1090,24 @@ local function collectRanksRows()
     local guild = addon:GetCurrentGuild()
     local rows = {}
     if not guild then return rows end
-    
+
     local minJoinDays = tonumber(ranksMinDays) or 0
     local maxOffDays = tonumber(ranksMaxOffline)
-    
+
     local n = GetNumGuildMembers() or 0
     for i = 1, n do
         local name, rank, rankIndex, level, _, _, note, officerNote, isOnline, _, classFile = GetGuildRosterInfo(i)
-        
+
         if name and rankIndex == ranksTargetRankIndex then
             local rec = guild.members[name]
             local extractedDate = (officerNote and string.match(officerNote, "%[(%S+ %d%d %d%d%d%d)%]")) or ((rec and rec.joinDateExact) and rec.joinDate) or nil
 
-            -- Fallback for Ranks Tab
             local serverEpoch = nil
             if not isOnline then
                 local y, m, d, h = GetGuildRosterLastOnline(i)
                 if y or m or d or h then
                     local totalSecs = ((y or 0)*365*24*3600) + ((m or 0)*30*24*3600) + ((d or 0)*24*3600) + ((h or 0)*3600)
-                    if totalSecs > 0 then
-                        serverEpoch = time() - totalSecs
-                    end
+                    if totalSecs > 0 then serverEpoch = time() - totalSecs end
                 end
             end
 
@@ -1069,24 +1116,18 @@ local function collectRanksRows()
 
             local daysOffline = 0
             if not isOnline then
-                if lastSeenTs then
-                    daysOffline = (time() - lastSeenTs) / 86400
-                else
-                    daysOffline = 9999 -- Unknown, assume huge
-                end
+                if lastSeenTs then daysOffline = (time() - lastSeenTs) / 86400 else daysOffline = 9999 end
             end
-            
+
             local pass = true
             if daysJoined == -1 then
-                -- Unknown join date: fail them if a minimum days requirement is set
                 if minJoinDays > 0 then pass = false end
             elseif daysJoined < minJoinDays then
-                -- Known join date but hasn't been in the guild long enough
                 pass = false
             end
 
             if maxOffDays and daysOffline > maxOffDays then pass = false end
-            
+
             if pass then
                 table.insert(rows, {
                     name        = name,
@@ -1103,11 +1144,9 @@ local function collectRanksRows()
             end
         end
     end
-    
     table.sort(rows, function(a, b) return a.name:lower() < b.name:lower() end)
     return rows
 end
-
 
 -- =========================================================
 -- Roster row collection + sorting
@@ -1123,49 +1162,40 @@ local function collectRosterRows()
 
     local n = GetNumGuildMembers() or 0
     for i = 1, n do
-        local name, rank, _, level, _, _, note, officerNote, isOnline, _, classFile
-            = GetGuildRosterInfo(i)
+        local name, rank, _, level, _, _, note, officerNote, isOnline, _, classFile = GetGuildRosterInfo(i)
         if name and name ~= "" then
             total = total + 1
             if isOnline then online = online + 1 end
 
             local pass = true
             if not rosterShowOffline and not isOnline then pass = false end
-            if pass and needle ~= "" and not lowerSafe(name):find(needle, 1, true) then
-                pass = false
-            end
+            if pass and needle ~= "" and not lowerSafe(name):find(needle, 1, true) then pass = false end
             if pass and noteNeedle ~= "" then
-                local nMatch = (note    and lowerSafe(note):find(noteNeedle, 1, true))
-                            or (officerNote and lowerSafe(officerNote):find(noteNeedle, 1, true))
+                local nMatch = (note and lowerSafe(note):find(noteNeedle, 1, true)) or (officerNote and lowerSafe(officerNote):find(noteNeedle, 1, true))
                 if not nMatch then pass = false end
             end
-            -- Fallback to server's "Last Online" if addon database lacks the timestamp
+
             local rec = guild.members[name]
             local serverEpoch = nil
             if not isOnline then
                 local y, m, d, h = GetGuildRosterLastOnline(i)
                 if y or m or d or h then
                     local totalSecs = ((y or 0)*365*24*3600) + ((m or 0)*30*24*3600) + ((d or 0)*24*3600) + ((h or 0)*3600)
-                    if totalSecs > 0 then
-                        serverEpoch = time() - totalSecs
-                    end
+                    if totalSecs > 0 then serverEpoch = time() - totalSecs end
                 end
             end
 
             local hasOffDaysFilter = (rosterOfflineDaysSearch ~= nil and rosterOfflineDaysSearch ~= "")
             if pass and hasOffDaysFilter then
                 if isOnline then
-                    -- Drop online members immediately if ANY input is in the box
                     pass = false
                 else
                     local filterOffDays = tonumber(rosterOfflineDaysSearch) or 0
                     local lastSeenTs = (rec and rec.lastOnline) or serverEpoch
-
                     if lastSeenTs then
                         local daysOffline = (time() - lastSeenTs) / 86400
                         if daysOffline <= filterOffDays then pass = false end
                     else
-                        -- Safe drop: if completely unidentifiable, exclude them
                         pass = false
                     end
                 end
@@ -1185,10 +1215,9 @@ local function collectRosterRows()
                     main        = guild.alts[name],
                 })
             end
-        end -- FIXED: Closed the 'if name and name ~= ""' statement block
-    end -- FIXED: Closed the 'for i = 1, n' iterator loop
+        end
+    end
 
-    -- Sort
     local key = rosterSortBy
     local rev = rosterSortReverse
     table.sort(rows, function(a, b)
@@ -1198,13 +1227,9 @@ local function collectRosterRows()
         elseif key == "online" then
             local at = a.online and math.huge or (a.lastSeen or 0)
             local bt = b.online and math.huge or (b.lastSeen or 0)
-            av, bv = at, bt
             if not rev then return at > bt else return at < bt end
         elseif key == "rank"   then av, bv = a.rank:lower(), b.rank:lower()
-        elseif key == "joinDate" then
-            local at = a.joinDate or "9999-99-99"
-            local bt = b.joinDate or "9999-99-99"
-            av, bv = at, bt
+        elseif key == "joinDate" then av, bv = (a.joinDate or "9999-99-99"), (b.joinDate or "9999-99-99")
         elseif key == "note"   then av, bv = a.note:lower(), b.note:lower()
         elseif key == "onote"  then av, bv = a.officerNote:lower(), b.officerNote:lower()
         else av, bv = a.name:lower(), b.name:lower() end
@@ -1224,8 +1249,7 @@ local function collectRosterRows()
         local seen = {}
         for _, r in ipairs(rows) do
             if not seen[r.name] then
-                if r.main then
-                else
+                if not r.main then
                     table.insert(newRows, r)
                     seen[r.name] = true
                     local kids = byMain[r.name]
@@ -1253,7 +1277,7 @@ local function collectRosterRows()
 end
 
 -- =========================================================
--- Log row collection
+-- Log map collection
 -- =========================================================
 local function collectLogRows()
     local guild = addon:GetCurrentGuild()
@@ -1267,9 +1291,7 @@ local function collectLogRows()
         if e and typeFilters[e.type] then
             if needle ~= "" then
                 local hay = lowerSafe((e.who or "") .. " " .. (e.details or "") .. " " .. (TYPE_LABEL[e.type] or e.type))
-                if hay:find(needle, 1, true) then
-                    table.insert(rows, { entry = e, n = i })
-                end
+                if hay:find(needle, 1, true) then table.insert(rows, { entry = e, n = i }) end
             else
                 table.insert(rows, { entry = e, n = i })
             end
@@ -1297,9 +1319,7 @@ local function collectAltsRows()
     local guild = addon:GetCurrentGuild()
     local rows = {}
     if not guild then return rows end
-    for alt, main in pairs(guild.alts) do
-        table.insert(rows, { alt = alt, main = main })
-    end
+    for alt, main in pairs(guild.alts) do table.insert(rows, { alt = alt, main = main }) end
     table.sort(rows, function(a, b)
         if a.main == b.main then return a.alt < b.alt end
         return a.main < b.main
@@ -1311,6 +1331,7 @@ end
 -- Refresh
 -- =========================================================
 local function setVis(widget, visible)
+    if not widget then return end
     if visible then widget:Show() else widget:Hide() end
 end
 
@@ -1346,6 +1367,27 @@ function UI:Refresh()
     setVis(f.rosterOffDaysLabel,     rosterMode)
     setVis(f.rosterMassKickBtn,      rosterMode)
 
+    -- Group Invite Configs Dynamic Hook (Log or Roster views)
+    local groupInviteMode = (logMode or rosterMode)
+    if f.groupInviteCheck then
+        setVis(f.groupInviteCheck, groupInviteMode)
+        f.groupInviteCheck:SetChecked(addon.groupInviteActive)
+    end
+    if f.groupInviteEditBox then
+        setVis(f.groupInviteEditBox, groupInviteMode)
+        setVis(f.groupInviteEditBoxLabel, groupInviteMode)
+        if GManagerDB and GManagerDB.autoInvite and not f.groupInviteEditBox:HasFocus() then
+            f.groupInviteEditBox:SetText(GManagerDB.autoInvite.groupinv or "")
+        end
+    end
+    if f.groupInvitePermCheck then
+        setVis(f.groupInvitePermCheck, groupInviteMode)
+        f.groupInvitePermCheck:SetChecked(addon.groupInvitePermanent)
+    end
+    if f.groupInviteBg then
+        setVis(f.groupInviteBg, groupInviteMode)
+    end
+
     -- Toggle Ranks controls
     setVis(f.ranksHeaderPanel, ranksMode)
     if ranksMode then
@@ -1376,62 +1418,44 @@ function UI:Refresh()
     setVis(f.macroSaveBtn,   macrosMode)
     for _, b in pairs(f.macroChanBtns or {}) do setVis(b, macrosMode) end
 
-        -- Toggle Auto-Invite controls
-        setVis(f.autoInvLabel, macrosMode)
-        setVis(f.autoInvCB, macrosMode)
-        setVis(f.autoInvCBLabel, macrosMode)
-        setVis(f.aiPhraseBg, macrosMode); setVis(f.aiPhraseLbl, macrosMode)
-        setVis(f.aiOnBg, macrosMode); setVis(f.aiOnLbl, macrosMode)
-        setVis(f.aiOffBg, macrosMode); setVis(f.aiOffLbl, macrosMode)
-        setVis(f.aiLvlBg, false); setVis(f.aiLvlLbl, false) --hidden until properly implemented
-        setVis(f.aiLowBg, false); setVis(f.aiLowLbl, false) --hidden until properly implemented
+    -- Toggle Auto-Invite controls
+    setVis(f.autoInvLabel, macrosMode)
+    setVis(f.autoInvCB, macrosMode)
+    setVis(f.autoInvCBLabel, macrosMode)
+    setVis(f.aiPhraseBg, macrosMode); setVis(f.aiPhraseLbl, macrosMode)
+    setVis(f.aiOnBg, macrosMode); setVis(f.aiOnLbl, macrosMode)
+    setVis(f.aiOffBg, macrosMode); setVis(f.aiOffLbl, macrosMode)
+    setVis(f.aiLvlBg, false); setVis(f.aiLvlLbl, false)
+    setVis(f.aiLowBg, false); setVis(f.aiLowLbl, false)
 
-        -- Populate Auto-Invite fields safely
-        if macrosMode and GManagerDB and GManagerDB.autoInvite then
-            local conf = GManagerDB.autoInvite
-            f.autoInvCB:SetChecked(conf.enabled)
-            if not f.aiPhrase:HasFocus() then f.aiPhrase:SetText(conf.phrase or "") end
-            if not f.aiOn:HasFocus()     then f.aiOn:SetText(conf.replyOn or "") end
-            if not f.aiOff:HasFocus()    then f.aiOff:SetText(conf.replyOff or "") end
-            if not f.aiLvl:HasFocus()    then f.aiLvl:SetText(conf.minLvl or "1") end
-            if not f.aiLow:HasFocus()    then f.aiLow:SetText(conf.replyLow or "") end
-        end
-
+    if macrosMode and GManagerDB and GManagerDB.autoInvite then
+        local conf = GManagerDB.autoInvite
+        f.autoInvCB:SetChecked(conf.enabled)
+        if not f.aiPhrase:HasFocus() then f.aiPhrase:SetText(conf.phrase or "") end
+        if not f.aiOn:HasFocus()     then f.aiOn:SetText(conf.replyOn or "") end
+        if not f.aiOff:HasFocus()    then f.aiOff:SetText(conf.replyOff or "") end
+        if not f.aiLvl:HasFocus()    then f.aiLvl:SetText(conf.minLvl or "1") end
+        if not f.aiLow:HasFocus()    then f.aiLow:SetText(conf.replyLow or "") end
+    end
 
     -- List panel sizing
     f.listPanel:ClearAllPoints()
-    if macrosMode then
-        f.listPanel:SetPoint("TOPLEFT", 16, -200)
-    else
-        f.listPanel:SetPoint("TOPLEFT", 16, -130)
-    end
-    if logMode then
-        f.listPanel:SetPoint("BOTTOMRIGHT", -180, 56)
-    else
-        f.listPanel:SetPoint("BOTTOMRIGHT", -18, 56)
-    end
+    if macrosMode then f.listPanel:SetPoint("TOPLEFT", 16, -200) else f.listPanel:SetPoint("TOPLEFT", 16, -130) end
+    if logMode    then f.listPanel:SetPoint("BOTTOMRIGHT", -180, 56) else f.listPanel:SetPoint("BOTTOMRIGHT", -18, 56) end
 
     -- Tab highlight
     for view, b in pairs(f.tabButtons) do
         if view == activeView then b:LockHighlight() else b:UnlockHighlight() end
     end
 
-    -- Subtitle + header text per view
     local key = addon:GetCurrentGuildKey()
     local guildLabel = key and key:gsub("::", " / ") or "(not in a guild)"
-    if logMode then
-        f.subtitle:SetText("|cFFFFCC00Guild Roster Event Log|r   " .. guildLabel)
-    elseif rosterMode then
-        f.subtitle:SetText("|cFFFFCC00Guild Roster|r   " .. guildLabel)
-    elseif macrosMode then
-        f.subtitle:SetText("|cFFFFCC00Saved Macros|r   account-wide")
-    elseif ranksMode then
-        f.subtitle:SetText("|cFFFFCC00Mass Rank Up Settings|r   " .. guildLabel)
-    else
-        f.subtitle:SetText("|cFFFFCC00Alts|r   " .. guildLabel)
-    end
+    if logMode then f.subtitle:SetText("|cFFFFCC00Guild Roster Event Log|r   " .. guildLabel)
+    elseif rosterMode then f.subtitle:SetText("|cFFFFCC00Guild Roster|r   " .. guildLabel)
+    elseif macrosMode then f.subtitle:SetText("|cFFFFCC00Saved Macros|r   account-wide")
+    elseif ranksMode  then f.subtitle:SetText("|cFFFFCC00Mass Rank Up Settings|r   " .. guildLabel)
+    else f.subtitle:SetText("|cFFFFCC00Alts|r   " .. guildLabel) end
 
-    -- Body
     local data, total, onlineCount = {}, 0, 0
     if logMode then
         data, total = collectLogRows()
@@ -1442,7 +1466,7 @@ function UI:Refresh()
         f.rightHeader:SetText(("|cffffffff%d|r / %d Online"):format(onlineCount, total))
     elseif ranksMode then
         data = collectRanksRows()
-        addon.RanksRowsCache = data 
+        addon.RanksRowsCache = data
         f.rightHeader:SetText(("|cffffffff%d|r Candidates available for mass promotion"):format(#data))
     elseif macrosMode then
         data = collectMacrosRows()
@@ -1526,20 +1550,16 @@ function UI:Refresh()
             else
                 local g = addon:GetCurrentGuild()
                 if g then
-                    for _, m in pairs(g.alts) do
-                        if m == r.name then mainTag = "  |cffffcc00<M>|r"; break end
-                    end
+                    for _, m in pairs(g.alts) do if m == r.name then mainTag = "  |cffffcc00<M>|r"; break end end
                 end
             end
-            --cells.name:SetText(classColor(r.classFile, r.name) .. mainTag)
             local whiteTag = addon:IsWhitelisted(r.name) and " |cff00ff00[W]|r" or ""
             cells.name:SetText(classColor(r.classFile, r.name) .. mainTag .. whiteTag)
 
             local onlineRaw = r.online and "Online" or fmtSince(r.lastSeen)
             cells.online:SetText(lastSeenColor(r.lastSeen, r.online) .. onlineRaw .. "|r")
 
-            if r.joinDate then cells.join:SetText("|cffcccccc" .. r.joinDate .. "|r")
-            else cells.join:SetText("|cff666666?|r") end
+            if r.joinDate then cells.join:SetText("|cffcccccc" .. r.joinDate .. "|r") else cells.join:SetText("|cff666666?|r") end
 
             cells.rank:SetText(r.rank or "")
             cells.note:SetText(r.note or "")
@@ -1551,11 +1571,8 @@ function UI:Refresh()
             if clickBtn then
                 local rowName = r.name
                 clickBtn:SetScript("OnClick", function(_, button)
-                    if button == "RightButton" then
-                        showRosterContextMenu(rowName)
-                    elseif button == "LeftButton" then
-                        if addon.ShowMemberDetail then addon:ShowMemberDetail(rowName) end
-                    end
+                    if button == "RightButton" then showRosterContextMenu(rowName)
+                    elseif button == "LeftButton" then if addon.ShowMemberDetail then addon:ShowMemberDetail(rowName) end end
                 end)
                 clickBtn:Show()
             end
@@ -1590,7 +1607,6 @@ function UI:Refresh()
             row:Show()
         end
     end
-
     f.status:SetText("")
 end
 
