@@ -3,9 +3,9 @@
 
 GManager = GManager or {}
 local addon = GManager
-addon.version = "1.1.2"
+addon.version = "1.1.3"
 
-local LOG_MAX = 9000        -- cap log size per guild to prevent unbounded growth
+local LOG_MAX = 15000        -- cap log size per guild to prevent unbounded growth
 local SNAPSHOT_DEBOUNCE = 2 -- seconds; coalesce burst GUILD_ROSTER_UPDATE events
 
 -- This server drops players from the roster after roughly one day offline,
