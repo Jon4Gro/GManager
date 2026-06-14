@@ -85,13 +85,13 @@ You can control the addon directly via standard chat slash commands using **/gm*
 ## **Technical Information**
 
 * **Interface TOC ID**: 30300 (Wrath of the Lich King Native).  
-* **Current Version**: 1.1.2.  
+* **Current Version**: 1.1.3.  
 * **Saved Variables (Account-Wide)**: GManagerDB.  
 * **Saved Variables (Character-Specific)**: GManagerCharDB.
 
 ## **⚖️ Use at Your Own Discretion**
 
-**Important Notice**: Because GManager v1.1.2 introduces automated, high-speed batch execution tools—such as the Mass Kick List and Mass Promote List \- it gives you immense 2-Click power over your Guild.
+**Important Notice**: Because GManager v1.1.3 introduces automated, high-speed batch execution tools—such as the Mass Kick List and Mass Promote List \- it gives you immense 2-Click power over your Guild.
 
 While the addon is engineered with server-friendly rate limits (15 operations/Member-Changes per second) and a 2-step verification confirmation prompt to prevent accidents, automated tools are only as precise as the filters you set. A single misplaced criteria filter or an un-updated whitelist could result in unintended rank shifts or member removals.
 
