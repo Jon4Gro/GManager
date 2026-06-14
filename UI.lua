@@ -64,7 +64,7 @@ local TYPE_LABEL = {
     LEVEL   = "Leveled",
 }
 
-local TYPE_ORDER = { "JOIN", "LEAVE", "LEVEL", "PROMOTE", "DEMOTE", "NOTE", "ONOTE", "SEEN" }
+local TYPE_ORDER = { "JOIN", "LEAVE", "PROMOTE", "DEMOTE", "NOTE", "ONOTE", "SEEN" }
 
 local CLASS_COLOR = {
     DEATHKNIGHT = "|cffc41f3b",
@@ -492,7 +492,7 @@ local function build()
 
     f.rosterONoteEmptyBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.rosterONoteEmptyBtn:SetSize(140, 22)
-    f.rosterONoteEmptyBtn:SetPoint("LEFT", f.rosterOffDaysLabel, "Left", -4, 22)
+    f.rosterONoteEmptyBtn:SetPoint("LEFT", f.rosterOffDaysLabel, "Left", -30, -39)
     f.rosterONoteEmptyBtn:SetText("ONote Empty Newbies")
     f.rosterONoteEmptyBtn:SetScript("OnClick", function()
         local list = {}
@@ -1383,8 +1383,8 @@ function UI:Refresh()
         setVis(f.aiPhraseBg, macrosMode); setVis(f.aiPhraseLbl, macrosMode)
         setVis(f.aiOnBg, macrosMode); setVis(f.aiOnLbl, macrosMode)
         setVis(f.aiOffBg, macrosMode); setVis(f.aiOffLbl, macrosMode)
-        setVis(f.aiLvlBg, macrosMode); setVis(f.aiLvlLbl, macrosMode)
-        setVis(f.aiLowBg, macrosMode); setVis(f.aiLowLbl, macrosMode)
+        setVis(f.aiLvlBg, false); setVis(f.aiLvlLbl, false) --hidden until properly implemented
+        setVis(f.aiLowBg, false); setVis(f.aiLowLbl, false) --hidden until properly implemented
 
         -- Populate Auto-Invite fields safely
         if macrosMode and GManagerDB and GManagerDB.autoInvite then
