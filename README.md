@@ -1,4 +1,4 @@
-# **GManager (v1.1.2)**
+# **GManager v1.1.3**
 
 GManager is an all-in-one Guild Management addon natively engineered for **World of Warcraft: Wrath of the Lich King (Patch 3.3.5a)**. Originally developed to streamline guild operations, this version has been refined to offer unparalleled administration tools. It provides deep logging, robust alt-character tracking, channel macros, and automated batch administration features.
 
