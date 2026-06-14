@@ -34,7 +34,7 @@ Like any powerful interface overhaul, GManager has one minor administrative quir
 ### **✉️ Auto Guild Invites (New\!)**
 
 * **Whisper Triggers**: Automatically invites guildless players to the guild when they whisper you a customizable keyword phrase.  
-* **Modular Reply Templates**: Configure automated whisper responses for every scenario, including a message sent alongside successful invites, an optional reply when the function is turned off, a minimum level filter, and an automatic notification text if a candidate's level is too low.
+* **Modular Reply Templates**: Configure automated whisper responses for every scenario, including a message sent alongside successful invites, an optional reply when the function is turned off.
 
 ## **Interface Tabs Breakdown**
 
