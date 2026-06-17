@@ -3,18 +3,11 @@
 
 GManager = GManager or {}
 local addon = GManager
-addon.version = "1.1.4"
+addon.version = "1.2"
 
 local LOG_MAX = 15000        -- cap log size per guild to prevent unbounded growth
 local SNAPSHOT_DEBOUNCE = 2 -- seconds; coalesce burst GUILD_ROSTER_UPDATE events
 
--- This server drops players from the roster after roughly one day offline,
--- so the naive "in old, not in new" check would log a spurious LEAVE every
--- time someone took a break and a matching JOIN when they returned. We
--- buffer "missing" players in guild.pendingLeaves and only promote them to
--- a real LEAVE log entry once they've been absent for this many seconds.
--- A reappearance inside the window silently clears the pending state with
--- neither a LEAVE nor a JOIN logged.
 local LEAVE_GRACE_SECONDS = 3 * 24 * 60 * 60  -- 3 days
 
 local currentGuildKey      -- realm::guildname for the currently active guild
@@ -27,9 +20,13 @@ local pendingSnapshot      -- coalescing timer-active flag
 local function ensureDB()
     if type(GManagerDB)     ~= "table" then GManagerDB     = {} end
     if type(GManagerCharDB) ~= "table" then GManagerCharDB = {} end
+    if type(GManagerCharDB.massPromote) ~= "table" then GManagerCharDB.massPromote = {} end
+    if GManagerCharDB.openWithGuild == nil then GManagerCharDB.openWithGuild = true end
+    if GManagerCharDB.closeWithGuild == nil then GManagerCharDB.closeWithGuild = true end
     if type(GManagerDB.guilds) ~= "table" then GManagerDB.guilds = {} end
     if type(GManagerDB.macros) ~= "table" then GManagerDB.macros = {} end
     if not GManagerDB.version then GManagerDB.version = 3 end
+    if not GManagerDB.batchSize then GManagerDB.batchSize = 2 end 
     if type(GManagerDB.autoInvite) ~= "table" then
         GManagerDB.autoInvite = {
             enabled = false,
@@ -41,7 +38,6 @@ local function ensureDB()
             replyLow = ""
         }
     else
-        -- Ensure the group invite phrase field exists if the table already exists
         if GManagerDB.autoInvite.groupinv == nil then
             GManagerDB.autoInvite.groupinv = ""
         end
@@ -198,8 +194,7 @@ local function snapshotRoster()
     local n = GetNumGuildMembers() or 0
     if n == 0 then return snap end
     for i = 1, n do
-        local name, rank, rankIndex, level, _, zone, note, officerNote, online, _, classFile
-            = GetGuildRosterInfo(i)
+        local name, rank, rankIndex, level, _, zone, note, officerNote, online, _, classFile = GetGuildRosterInfo(i)
         if name and name ~= "" then
             snap[name] = {
                 index       = i,
@@ -223,7 +218,6 @@ local function diffSnapshots(old, new, guild)
 
     guild.pendingLeaves = guild.pendingLeaves or {}
 
-    -- Joins
     for name, info in pairs(new) do
         if not old[name] then
             local m = guild.members[name]
@@ -260,14 +254,12 @@ local function diffSnapshots(old, new, guild)
         end
     end
 
-    -- Leaves (Deferred)
     for name in pairs(old) do
         if not new[name] then
             guild.pendingLeaves[name] = guild.pendingLeaves[name] or now
         end
     end
 
-    -- Changes
     for name, n in pairs(new) do
         local o = old[name]
         if o then
@@ -444,6 +436,65 @@ local function scheduleDiff()
 end
 
 -- =========================================================
+-- Helper: Multiple Trigger Words separated by '-'
+-- =========================================================
+local function containsTriggerWord(msg, triggerString)
+    if not triggerString or triggerString == "" then return false end
+    local lowerMsg = msg:lower()
+    for word in string.gmatch(triggerString, "([^%-]+)") do
+        word = word:match("^%s*(.-)%s*$") -- trim whitespace
+        if word ~= "" and lowerMsg:find(word:lower(), 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+-- =========================================================
+-- Macro Spammer Ticker
+-- =========================================================
+addon.spamTimer = 0
+addon.spamInterval = 5
+addon.spamActive = false
+addon.spamMacros = addon.spamMacros or {}
+
+local spamUpdater = CreateFrame("Frame")
+spamUpdater:SetScript("OnUpdate", function(self, elapsed)
+    if addon.spamActive and addon.spamInterval and addon.spamInterval > 0 then
+        addon.spamTimer = addon.spamTimer + elapsed
+        if addon.spamTimer >= (addon.spamInterval * 60) then
+            addon.spamTimer = 0
+            if GManagerDB and GManagerDB.macros then
+                for i = 1, #GManagerDB.macros do
+                    if addon.spamMacros[i] then
+                        addon:SendMacro(i)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- =========================================================
+-- Guild Frame Hook (Open/Close with default UI)
+-- =========================================================
+local function hookGuildFrame()
+    if GuildFrame and not GuildFrame.__GManagerHooked then
+        GuildFrame.__GManagerHooked = true
+        GuildFrame:HookScript("OnShow", function()
+            if GManagerCharDB and GManagerCharDB.openWithGuild then
+                if addon.UI and addon.UI.Show then addon.UI:Show() end
+            end
+        end)
+        GuildFrame:HookScript("OnHide", function()
+            if GManagerCharDB and GManagerCharDB.closeWithGuild then
+                if addon.UI and addon.UI.Hide then addon.UI:Hide() end
+            end
+        end)
+    end
+end
+
+-- =========================================================
 -- Main Backend Event Listener
 -- =========================================================
 local backend = CreateFrame("Frame")
@@ -453,31 +504,35 @@ backend:RegisterEvent("GUILD_ROSTER_UPDATE")
 backend:RegisterEvent("CHAT_MSG_WHISPER")
 
 backend:SetScript("OnEvent", function(self, event, arg1, arg2)
-    if event == "ADDON_LOADED" and arg1 == "GManager" then
-        ensureDB()
+    if event == "ADDON_LOADED" then
+        if arg1 == "GManager" then
+            ensureDB()
+        elseif arg1 == "Blizzard_GuildUI" then
+            hookGuildFrame() 
+        end
     elseif event == "PLAYER_LOGIN" then
+        hookGuildFrame() 
         if IsInGuild() then GuildRoster() end
     elseif event == "GUILD_ROSTER_UPDATE" then
         if IsInGuild() then scheduleDiff() end
     elseif event == "CHAT_MSG_WHISPER" then
         local msg, sender = arg1, arg2
-        
+
         -- 1. Auto Guild Invite
         if GManagerDB and GManagerDB.autoInvite and GManagerDB.autoInvite.enabled then
             local conf = GManagerDB.autoInvite
-            local phrase = conf.phrase or ""
-            if phrase ~= "" and msg:lower():find(phrase:lower(), 1, true) then
+            if containsTriggerWord(msg, conf.phrase) then
                 GuildInvite(sender)
                 if conf.replyOn and conf.replyOn ~= "" then
                     SendChatMessage(conf.replyOn, "WHISPER", nil, sender)
                 end
             end
         end
-        
+
         -- 2. Auto Group Invite
         if addon.groupInviteActive then
             local groupPhrase = GManagerDB and GManagerDB.autoInvite and GManagerDB.autoInvite.groupinv or ""
-            if groupPhrase ~= "" and msg:lower():find(groupPhrase:lower(), 1, true) then
+            if containsTriggerWord(msg, groupPhrase) then
                 InviteUnit(sender)
             end
         end
