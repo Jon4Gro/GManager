@@ -1,114 +1,97 @@
-# **GManager (v1.2)**
+# **GManager (v1.3)**
 
-GManager is an all-in-one Guild Management addon natively engineered for **World of Warcraft: Wrath of the Lich King (Patch 3.3.5a)**. Engineered to streamline high-volume guild operations, this tool offers unparalleled administration utilities including deep core logging, robust alt-character mapping, localized channel macros, and automated batch processing systems.
+GManager is an all-in-one Guild Management addon natively engineered for **World of Warcraft: Wrath of the Lich King (Patch 3.3.5a)**. Built on the classic frame API (`CreateFrame`, `GuildRosterInfo`, `SetWhoToUI`, `FauxScrollFrame`, `EasyMenu` context menus, etc.) it delivers high-volume guild ops without tainting the default UI. Features include deep event logging, alt-character mapping, channel-bound macros, batch rate-limited promote/kick, and smart auto-invite systems with level gating.
 
 ## **⚠️ Known Bug & The GManager Solution**
 
-Like any powerful interface overhaul, GManager has one minor administrative quirk you should be aware of regarding the default user interface:
+* **Blizzard GuildFrame Offline Bug**: With GManager loaded the stock `GuildRosterFrame` can get stuck defaulting to "Show Offline Members" after any sort click.  
+* **GManager Roster Tab to the Rescue**: Our custom `ROSTER` view (powered by `collectRosterRows`, live `rosterPlayerSearch` / `rosterNoteSearch` / `rosterOfflineDaysSearch` filters, and `ROSTER_COLS` layout) completely replaces the need to fight the default frame. Right-click context menus (`showRosterContextMenu`) give instant whitelist, promote, demote, whisper and group invite actions.
 
-* **The Blizzard GuildFrame Bug**: Keeping this addon active will cause the original Blizzard GuildFrame to get visually stuck to show Offline Members. Specifically, whenever you click to sort the default roster, it will default to always showing offline members.  
-* **The Silver Lining**: While this default UI glitch can be annoying, GManager's dedicated **Roster Tab** completely compensates for it by offering a vastly superior overview. Instead of fighting with the default frame, GManager provides a cleaner directory equipped with live text filtering by character name or note strings, dynamic thresholds for minimum days offline, and powerful right-click context menus to handle invites, whispers, and rank shifts instantly.
+## **What's New in v1.3**
 
-## **What's New in v1.2**
+* **Better Leave Logging**: Completely reworked departure tracking in `Core.lua`. Uses a `pendingLeaves` table + `LEAVE_GRACE_SECONDS = 5 * 60` (5 minutes). When a member disappears from `snapshotRoster()`, we record the exact `absentSince` timestamp. On grace expiry the `LEAVE` entry is pushed with `t = absentSince` so the Log tab shows the real moment they left instead of "now". Cleaner audit history for leadership reviews and fewer false-positive leave spam entries during roster floods.
 
-* **🎖️ Improved Mass Promote System**: Enhanced ranking logic, better filtering UI in the new **Ranks Tab**, and more precise membership duration calculations based on officer note date parsing.
-* **🛠️ Major UI Improvements**: Cleaner layout, better responsiveness, refined column widths, and polished visual feedback across all tabs.
-* **⚙️ New Settings Tab**: Centralized configuration for:
-  * Batch size control for mass operations
-  * Auto-open / Auto-close behavior tied to the default Guild Frame
-  * Full Auto Guild Invite & Auto Group Invite configuration (keywords, replies, level filters, etc.)
-* **General Polish**: Various bug fixes, performance tweaks, and improved roster handling.
+* **Minimum Level System for Auto Guild Invites**: Added full `minLvl` gate (default 1) inside `GManagerDB.autoInvite`. On `CHAT_MSG_WHISPER` trigger match we now do:
+  ```lua
+  SetWhoToUI(1)
+  SendWho('n-"' .. cleanSender .. '"')   -- exact name match with quotes
+  ```
+  Then `WHO_LIST_UPDATE` → `ProcessWhoLevelCheck()` reads `GetWhoInfo`, compares against `conf.minLvl`, and either `GuildInvite` + `replyOn` or sends the new `replyLow` message. No more inviting level 1 alts or trial accounts by accident.
+
+* **Improved Settings Tab UI**: Major polish pass on the `settingsMode` block in `UI.lua:Refresh()`. 
+  - New dedicated **Group Invite** section with its own backdrop (`groupInviteBg`), enable checkbox, phrase `EditBox`, and **Permanent** mode toggle (`groupInvitePermCheck`).
+  - Auto Guild Invite controls are now clearly grouped: trigger phrase, `replyOn`/`replyOff`, `minLvl` numeric input, and `replyLow` message.
+  - Better `setVis` handling for all the new widgets (`aiMinLvlBg`, `aiReplyLowBg`, etc.).
+  - Input focus guards (`HasFocus()`) prevent the periodic refresh from wiping text the user is still typing.
+  - Overall tighter layout, consistent label positioning, and smoother batch-size / guild-frame hook toggles.
 
 ## **Core Features**
 
 ### **🛡️ Whitelisting**
-
-* **Protection Shield**: Protect specific characters from any mass automated administrative actions.  
-* **Visual Indicators**: Whitelisted members are clearly labeled with a green  
-  $$W$$  
-  tag right in your guild roster view.  
-* **Easy Management**: Toggle a member's whitelist status effortlessly using the right-click roster context menu.
+Protected members (green `[W]` tag in roster rows) are skipped by every mass operation (`ProcessBatch`, mass kick, mass promote). Toggle via right-click context menu or the new whitelist API in `Core.lua`.
 
 ### **🥾 Mass Kick List**
+Filter the roster (name/note/offline-days), preview the list, then execute in safe configurable batches (`GManagerDB.batchSize`). Double confirmation + whitelist bypass. All kicks go through `GuildUninvite` with post-action `RequestRosterAfterAction` delay.
 
-* **Clean House Safely**: Seamlessly kick inactive, low-level, or unwanted characters based on your active roster filters.  
-* **Smart Whitelist Bypass**: The system checks every target and guarantees whitelisted members will never be removed during a sweep.  
-* **Rate-Limited Performance**: Actions are executed sequentially in safe batches (configurable size) to protect server stability.  
-* **Double Confirmation Guardrails**: Employs a rigorous 2-step safety prompt window to prevent accidental mass removals.
+### **🎖️ Mass Promote List (Ranks Tab)**
+Select a baseline rank in the new Ranks view, set min-days-in-guild + max-offline filters, preview candidates (parsed from officer note date tags like `[Jun 09 2026]`), then batch promote. Respects whitelist. Dynamic `GuildControlGetRankName` / `GuildControlGetNumRanks` integration.
 
-### **🎖️ Mass Promote List (Improved)**
+### **✉️ Auto Guild & Party Invites (Enhanced in v1.3)**
+* **Guild Whisper Triggers**: Custom phrase (supports multiple words separated by `-`). When matched, silent `/who` level check → `minLvl` gate → invite or `replyLow`. Configurable `replyOn` / `replyOff` messages. All handled in the `backend` `OnEvent` for `CHAT_MSG_WHISPER` + `WHO_LIST_UPDATE`.
+* **Party / Group Auto-Invites**: Toggle via Settings → Group Invite section. Temporary (minutes) or **Permanent** mode. Same multi-word trigger support via `containsTriggerWord`. Uses `InviteUnit`.
+* **Rate & Safety**: `delayCall` scheduler, exact-name `/who` quoting, and focus guards on all EditBoxes.
 
-* **Automated Rank Ups**: Evaluate and mass promote roster members from a specific rank up to the next tier sequentially.  
-* **Granular Criteria Filters**: Filter your promotion pool by minimum days spent in the guild and maximum allowed offline days.  
-* **Safety First**: Respects the roster whitelist entirely by skipping protected members.  
-* **Server-Friendly Execution**: Configurable batch processing with clear progress feedback.
+### **📜 Event Log**
+Up to 15 000 entries per guild. Types: `JOIN`, `LEAVE`, `PROMOTE`, `DEMOTE`, `NOTE`, `ONOTE`, `SEEN`, `LEVEL`. Full text search, type filters, line numbers. `fmtDateLong` + `fmtSince` helpers give human readable timestamps and "X days ago" strings. Color coded with `TYPE_COLOR` table.
 
-### **✉️ Auto Guild & Party Invites**
+### **🔗 Alts Mapping**
+`SetAlt` / `GetMainOf` / `GetAltsOf` stored per-guild in `GManagerDB.guilds[key].alts`. Displayed in both Roster rows (`<M>` / `(alt)`) and the dedicated Alts tab + Member Detail panel (`Roster.lua`).
 
-* **Guild Whisper Triggers**: Automatically invites guildless players to the guild when they whisper you a customizable keyword phrase. Includes automated replies, level filter safety blocks, and dynamic out-of-service alerts.  
-* **Party / Group Auto-Invites**: Turn your character into an automated group recruitment hub. Instantly accepts whisper trigger keywords to auto-invite characters to your party or raid group.  
-* **Group Window Scheduler**: Built-in temporal safety parameters allow you to open recruitment bursts for limited time or lock into permanent mode.
+### **💬 Account-Wide Macros + Spam**
+Save any text bound to a channel (1-9, GUILD, OFFICER, SAY, PARTY, RAID, YELL). Send instantly or add to rotation. `spamUpdater` `OnUpdate` ticker respects `spamInterval` (minutes). Spam checkboxes per macro row with live `[SPAM]` tag.
 
-## **Interface Tabs Breakdown**
+## **Interface Tabs (6 total)**
 
-GManager features a clean, plain-frame UI accessible via **/gm** with 6 specialized tabs:
+All built with plain Wrath frame API (`UIPanelButtonTemplate`, `InputBoxTemplate`, `OptionsBaseCheckButtonTemplate`, `FauxScrollFrame`, custom `PANEL_BACKDROP` / `BACKDROP` tables). No AceGUI or external libs.
 
-### **1. Log Tab**
+1. **Log Tab** – Search + type filter checkboxes + numbered lines + clear button. Right side filter panel.
+2. **Roster Tab** – Show offline toggle, player/note search, offline-days threshold, group-alts checkbox, mass-kick button, ONote-empty button. Sortable columns (`rosterSortBy`). Rich right-click menu.
+3. **Alts Tab** – Simple list of alt → main mappings with Set / Unset inputs.
+4. **Macros Tab** – Channel buttons (highlight active), message EditBox + Save, spam interval + enable checkbox. Per-row Send / Delete / Edit / Set-as-spam buttons.
+5. **Ranks Tab** – Baseline rank selector, min-days / max-offline filters, candidate preview table (`collectRanksRows`), mass-promote button. Uses live `GuildControlGet*` calls.
+6. **Settings Tab (Improved UI)** – 
+   - Batch size numeric
+   - Open/Close with GuildFrame checkboxes (`GManagerCharDB`)
+   - **Group Invite** block: enable, phrase, permanent toggle
+   - **Auto Guild Invite** block: enabled, phrase, replyOn, replyOff, minLvl, replyLow
+   - All inputs guarded against refresh overwrites.
 
-* **Ghost-Leave Filtering**: Features a smart 3-day grace window buffer for missing characters.  
-* **Comprehensive Audit Trail**: Tracks joins, leaves, note edits, rank changes, and more.  
-* **Scannable Utilities**: Full text search, line numbering, and support for up to 15,000 entries.
-
-### **2. Roster Tab**
-
-* **Enhanced Context Menus**: Right-click any member for whitelisting, promote/demote, whisper, or invite.  
-* **Advanced Search Filters**: Filter by name, note, or offline days.  
-* **ONote Empty Newbies**: One-click batch tagging of new members with today's date in officer notes.
-
-### **3. Ranks Tab (New/Improved)**
-
-* **Mass Promotion Dashboard**: Select baseline rank and preview eligible candidates with powerful filtering.  
-* **Dynamic Time Parsing**: Reads membership dates from officer notes for accurate longevity calculations.
-
-### **4. Alts Tab**
-
-* **Alt-to-Main Indexing**: Alphabetical map of secondary characters linked to their mains.
-
-### **5. Macros Tab**
-
-* **Account-Wide Macros**: Save and broadcast messages to any channel (GUILD, OFFICER, SAY, PARTY, etc.).  
-* **Spam Rotation**: Optional timed broadcasting of selected macros.
-
-### **6. Settings Tab (New!)**
-
-* Configure batch sizes, Guild Frame integration, and all Auto-Invite settings in one place.
+Access with `/gm` or `/gmanager`. The main frame (`GManagerMainFrame`) is movable, clamped, high-strata, with tab buttons that call `UI:Refresh()` on switch.
 
 ## **Slash Commands**
 
-You can control the addon directly via standard chat slash commands using **/gm** or **/GManager**:
-
-| Command             | Function |
-| :----               | :---- |
-| /gm                 | Toggles the primary GManager user interface window. |
-| /gm help            | Prints an index of available command options inside the chat log. |
-| /gm setalt \<altName\> \<mainName\> | Tags a specific character as an alternate version of a primary main character. |
-| /gm unalt \<name\>  | Removes any existing alternate-character association tag from the target. |
-| /gm alts            | Prints a structured breakdown of all currently mapped alt-to-main relationships in chat. |
-| /gm clear           | Instantly purges the event history log for your current active guild. |
+| Command                        | Function |
+|--------------------------------|----------|
+| `/gm`                          | Toggle main UI window |
+| `/gm help`                     | Print command list to chat |
+| `/gm setalt <alt> <main>`      | Tag alt relationship (calls `addon:SetAlt`) |
+| `/gm unalt <name>`             | Remove alt tag |
+| `/gm alts`                     | Dump current alt→main map to chat |
+| `/gm clear`                    | Wipe current guild's event log |
 
 ## **Technical Information**
 
-* **Interface TOC ID**: 30300 (Wrath of the Lich King Native Patch 3.3.5a).  
-* **Current Version**: 1.2.  
-* **Saved Variables (Account-Wide)**: GManagerDB.  
-* **Saved Variables (Character-Specific)**: GManagerCharDB.  
-* **Component Architecture**: Core.lua, UI.lua, Roster.lua.
+* **Interface TOC**: 30300 (WotLK 3.3.5a native)
+* **Current Version**: 1.3 (see `addon.version` in `Core.lua`)
+* **SavedVariables**: `GManagerDB` (account) – guilds, macros, autoInvite config, batchSize, etc.
+* **SavedVariablesPerCharacter**: `GManagerCharDB` – open/close with guild, massPromote history
+* **Files**: `Core.lua` (backend, events, snapshot diff, leave grace, who level checks, spam ticker), `UI.lua` (6-tab frame, all Refresh logic, context menus, Roster/Ranks/Alts/Macros/Settings widgets), `Roster.lua` (Member Detail panel takeover of `GuildMemberDetailFrame`, alt tagging, promote/demote/remove/invite buttons, periodic poll on `GetGuildRosterSelection`)
+* **Key Patterns Used**: `scheduleDiff` + `SNAPSHOT_DEBOUNCE`, `ProcessBatch` with 1-second `OnUpdate` pacing, `containsTriggerWord` multi-word split on `-`, `fmtSince` / `lastSeenColor` helpers, `CLASS_COLOR` + `TYPE_COLOR` strings.
 
 ## **⚖️ Use at Your Own Discretion**
 
-**Important Notice**: Because GManager introduces automated, high-speed batch execution tools—such as the Mass Kick List, Mass Promote List, and Officer Note population tools—it gives you immense power over your Guild.  
-While the addon is engineered with server-friendly rate limits and multi-step verification confirmation prompts to prevent accidents, automated tools are only as precise as the filters you set.  
-**Please utilize this software responsibly and at your own discretion.** Always double-check your active roster filters and verify your green
+GManager gives you serious power: batch kicks, mass promotes, auto-invites with level gates, officer-note date stamping, etc. Everything is rate-limited and double-confirmed, but **you** are responsible for the filters you set and for double-checking the green `[W]` whitelist tags before hitting "Mass Kick" or "Mass Promote". The 5-minute leave grace and min-level who-check are there to help, not to replace good judgment. Use responsibly on your realm.
 
-$$W$$  
-whitelist tags before pulling the trigger on any mass administrative actions.
+---
+
+*Refined for WotLK 3.3.5a – pure Lua, no external dependencies. Questions or pull requests welcome on the classic addon scene.*

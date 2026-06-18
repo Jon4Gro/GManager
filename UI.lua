@@ -988,11 +988,11 @@ local function build()
 
     -- ===== Settings View Components =====
     f.batchSizeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.batchSizeLabel:SetPoint("TOPLEFT", f.tabLog, "BOTTOMLEFT", 18, -36)
-    f.batchSizeLabel:SetText("Mass Action Batch Size (per second):")
+    f.batchSizeLabel:SetPoint( "TOPRIGHT", -90, -90)
+    f.batchSizeLabel:SetText("Mass Action Batch Size (per sec):")
 
     f.batchSizeInput = CreateFrame("EditBox", "GManagerBatchSize", f, "InputBoxTemplate")
-    f.batchSizeInput:SetSize(40, 20)
+    f.batchSizeInput:SetSize(26, 20)
     f.batchSizeInput:SetPoint("LEFT", f.batchSizeLabel, "RIGHT", 13, 0)
     f.batchSizeInput:SetAutoFocus(false)
     f.batchSizeInput:SetNumeric(true)
@@ -1021,7 +1021,7 @@ local function build()
     f.closeWithGuildLabel:SetText("Close GManager with Guild Frame")
 
     f.autoInvLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.autoInvLabel:SetPoint("BOTTOMLEFT", 36, 250)
+    f.autoInvLabel:SetPoint("BOTTOMLEFT", 24, 120)
     f.autoInvLabel:SetText("Auto Guild  Invite")
 
     f.autoInvCB = CreateFrame("CheckButton", "GManagerAutoInvCB", f, "OptionsBaseCheckButtonTemplate")
@@ -1057,9 +1057,14 @@ local function build()
         return bg, eb, lbl
     end
 
-    f.aiPhraseBg, f.aiPhrase, f.aiPhraseLbl = makeAutoInvEditBox("GM_AI_Phrase", " Trigger Words (can be multiple seperate with - ):", 490, f.autoInvCB, "BOTTOM", -13, -28, "phrase")
-    f.aiOnBg, f.aiOn, f.aiOnLbl             = makeAutoInvEditBox("GM_AI_On", " Auto-Reply:", 200, f.autoInvCBLabel, "TOPRIGHT", 18, -5, "replyOn")
-    f.aiOffBg, f.aiOff, f.aiOffLbl          = makeAutoInvEditBox("GM_AI_Off", " Reply if OFF:", 200, f.aiOnBg, "TOPRIGHT", 10, 0, "replyOff")
+    f.aiPhraseBg, f.aiPhrase, f.aiPhraseLbl = makeAutoInvEditBox("GM_AI_Phrase", " Trigger Words (can be multiple seperate with - ):", 380, f.autoInvCB, "BOTTOM", -13, -32, "phrase")
+    f.aiOnBg, f.aiOn, f.aiOnLbl             = makeAutoInvEditBox("GM_AI_On", " Auto-Reply:", 300, f.autoInvCBLabel, "TOPRIGHT", 14, -5, "replyOn")
+    f.aiOffBg, f.aiOff, f.aiOffLbl          = makeAutoInvEditBox("GM_AI_Off", " Reply if OFF:", 300, f.aiOnBg, "TOPRIGHT", 10, 0, "replyOff")
+
+    -- Re-introduced level check controls for Guild Auto Invite (right of Reply if OFF)
+    f.aiMinLvlBg, f.aiMinLvl, f.aiMinLvlLbl = makeAutoInvEditBox("GM_AI_MinLvl", " Min Lvl:", 50, f.aiPhrase, "RIGHT", 10, 11, "minLvl")
+    f.aiReplyLowBg, f.aiReplyLow, f.aiReplyLowLbl = makeAutoInvEditBox("GM_AI_ReplyLow", " Reply if too Low:", 240, f.aiMinLvlBg, "RIGHT", 10, 11, "replyLow")
+    f.aiMinLvl:SetNumeric(true)  -- numeric input for level
 
     f.autoInvBg = CreateFrame("Frame", nil, f)
     f.autoInvBg:SetBackdrop({
@@ -1071,11 +1076,11 @@ local function build()
     f.autoInvBg:SetBackdropColor(0.05, 0.05, 0.05, 0.6)
     f.autoInvBg:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
     f.autoInvBg:SetPoint("TOPLEFT", f.autoInvLabel, "TOPLEFT", -6, -18)
-    f.autoInvBg:SetPoint("BOTTOMRIGHT", f.aiPhraseBg, "RIGHT", 10, -18)
+    f.autoInvBg:SetPoint("BOTTOMRIGHT", f.aiReplyLow, "RIGHT", 10, -18)
     f.autoInvBg:SetFrameLevel(math.max(0, f.autoInvCB:GetFrameLevel() - 1))
 
     f.groupInviteLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.groupInviteLabel:SetPoint("BOTTOMLEFT", f.autoInvCB, "BOTTOMLEFT", 0, -80)
+    f.groupInviteLabel:SetPoint("BOTTOMLEFT", f.autoInvCB, "BOTTOMLEFT", 0, 170)
     f.groupInviteLabel:SetText("Auto Group Invite")
 
     f.groupInviteCheck = CreateFrame("CheckButton", "GManagerGroupInviteCheck", f, "InterfaceOptionsCheckButtonTemplate")
@@ -1632,6 +1637,8 @@ function UI:Refresh()
     setVis(f.aiPhraseBg, settingsMode); setVis(f.aiPhraseLbl, settingsMode)
     setVis(f.aiOnBg, settingsMode); setVis(f.aiOnLbl, settingsMode)
     setVis(f.aiOffBg, settingsMode); setVis(f.aiOffLbl, settingsMode)
+    setVis(f.aiMinLvlBg, settingsMode); setVis(f.aiMinLvlLbl, settingsMode)
+    setVis(f.aiReplyLowBg, settingsMode); setVis(f.aiReplyLowLbl, settingsMode)
     
     setVis(f.groupInviteLabel, settingsMode)
     local groupInviteMode = settingsMode
@@ -1650,6 +1657,8 @@ function UI:Refresh()
             if not f.aiPhrase:HasFocus() then f.aiPhrase:SetText(conf.phrase or "") end
             if not f.aiOn:HasFocus()     then f.aiOn:SetText(conf.replyOn or "") end
             if not f.aiOff:HasFocus()    then f.aiOff:SetText(conf.replyOff or "") end
+            if not f.aiMinLvl:HasFocus() then f.aiMinLvl:SetText(tostring(conf.minLvl or 1)) end
+            if not f.aiReplyLow:HasFocus() then f.aiReplyLow:SetText(conf.replyLow or "") end
         end
     end
 

@@ -1,8 +1,8 @@
 ## Interface: 30300
 ## Title: |cFFFFCC00GManager|r
-## Notes: Wrath 3.3.5a guild Manger - Roster, Event Log, Alts, Macros, Mass Promote and Kick
+## Notes: Wrath 3.3.5a guild Manger - Roster, Event Log, Alts, Macros, Mass Promote, Kick, Invite and Flood
 ## Refined by Sam
-## Version: 1.2
+## Version: 1.3
 ## SavedVariables: GManagerDB
 ## SavedVariablesPerCharacter: GManagerCharDB
 

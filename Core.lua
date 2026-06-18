@@ -3,12 +3,12 @@
 
 GManager = GManager or {}
 local addon = GManager
-addon.version = "1.2"
+addon.version = "1.3" -- Version bump for SetWhoToUI fix
 
 local LOG_MAX = 15000        -- cap log size per guild to prevent unbounded growth
 local SNAPSHOT_DEBOUNCE = 2 -- seconds; coalesce burst GUILD_ROSTER_UPDATE events
 
-local LEAVE_GRACE_SECONDS = 3 * 24 * 60 * 60  -- 3 days
+local LEAVE_GRACE_SECONDS = 5 * 60  -- reduced to 5 minutes for faster leave logging
 
 local currentGuildKey      -- realm::guildname for the currently active guild
 local lastSnapshot         -- previous snapshot used for diffing
@@ -35,12 +35,12 @@ local function ensureDB()
             replyOn = "Auto-Sending Guild invite ",
             replyOff = "Auto-invites are currently disabled",
             minLvl = 1,
-            replyLow = ""
+            replyLow = "Your level is too low for auto-invite. Please level up first!"
         }
     else
-        if GManagerDB.autoInvite.groupinv == nil then
-            GManagerDB.autoInvite.groupinv = ""
-        end
+        if GManagerDB.autoInvite.groupinv == nil then GManagerDB.autoInvite.groupinv = "" end
+        if GManagerDB.autoInvite.minLvl == nil then GManagerDB.autoInvite.minLvl = 1 end
+        if GManagerDB.autoInvite.replyLow == nil then GManagerDB.autoInvite.replyLow = "" end
     end
 end
 
@@ -451,6 +451,53 @@ local function containsTriggerWord(msg, triggerString)
 end
 
 -- =========================================================
+-- Pre-invite /who level check
+-- =========================================================
+function addon:ProcessWhoLevelCheck()
+    addon.pendingLevelChecks = addon.pendingLevelChecks or {}
+    if next(addon.pendingLevelChecks) == nil then return end
+
+    local num = GetNumWhoResults()
+    if num == 0 then return end
+
+    local conf = GManagerDB and GManagerDB.autoInvite
+    if not conf then 
+        addon.pendingLevelChecks = {}
+        return 
+    end
+
+    local minL = tonumber(conf.minLvl) or 1
+
+    -- Loop through silent who buffer to match the player who whispered us
+    for i = 1, num do
+        local whoName, _, whoLevelRaw = GetWhoInfo(i)
+        if whoName then
+            -- Clean the incoming WhoName (strip cross-realm strings, force lowercase)
+            local cleanWhoName = string.lower(strsplit("-", whoName))
+            
+            -- Check if this matches an item in our lookup checklist
+            local originalSender = addon.pendingLevelChecks[cleanWhoName]
+            
+            if originalSender then
+                local whoLevel = tonumber(whoLevelRaw) or 0
+                addon.pendingLevelChecks[cleanWhoName] = nil -- Clear entry immediately
+
+                if whoLevel >= minL then
+                    if conf.replyOn and conf.replyOn ~= "" then
+                        SendChatMessage(conf.replyOn, "WHISPER", nil, originalSender)
+                    end
+                    GuildInvite(originalSender)
+                else
+                    if conf.replyLow and conf.replyLow ~= "" then
+                        SendChatMessage(conf.replyLow, "WHISPER", nil, originalSender)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- =========================================================
 -- Macro Spammer Ticker
 -- =========================================================
 addon.spamTimer = 0
@@ -502,8 +549,9 @@ backend:RegisterEvent("ADDON_LOADED")
 backend:RegisterEvent("PLAYER_LOGIN")
 backend:RegisterEvent("GUILD_ROSTER_UPDATE")
 backend:RegisterEvent("CHAT_MSG_WHISPER")
+backend:RegisterEvent("WHO_LIST_UPDATE") 
 
-backend:SetScript("OnEvent", function(self, event, arg1, arg2)
+backend:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12)
     if event == "ADDON_LOADED" then
         if arg1 == "GManager" then
             ensureDB()
@@ -515,16 +563,32 @@ backend:SetScript("OnEvent", function(self, event, arg1, arg2)
         if IsInGuild() then GuildRoster() end
     elseif event == "GUILD_ROSTER_UPDATE" then
         if IsInGuild() then scheduleDiff() end
+    elseif event == "WHO_LIST_UPDATE" then
+        addon:ProcessWhoLevelCheck() 
     elseif event == "CHAT_MSG_WHISPER" then
         local msg, sender = arg1, arg2
 
         -- 1. Auto Guild Invite
-        if GManagerDB and GManagerDB.autoInvite and GManagerDB.autoInvite.enabled then
+        if GManagerDB and GManagerDB.autoInvite then
             local conf = GManagerDB.autoInvite
-            if containsTriggerWord(msg, conf.phrase) then
-                GuildInvite(sender)
-                if conf.replyOn and conf.replyOn ~= "" then
-                    SendChatMessage(conf.replyOn, "WHISPER", nil, sender)
+            
+            -- Check for trigger phrase FIRST
+            if conf.phrase and conf.phrase ~= "" and containsTriggerWord(msg, conf.phrase) then
+                if conf.enabled then
+                    local cleanSender = strsplit("-", sender)
+                    
+                    addon.pendingLevelChecks = addon.pendingLevelChecks or {}
+                    addon.pendingLevelChecks[cleanSender:lower()] = sender
+                    
+                    -- FIXED: Direct /who query results to the UI data table instead of the Chat Frame text line
+                    SetWhoToUI(1) 
+                    -- FIXED: Wrap in exact matching quotes so /who Alex doesn't return Alexander
+                    SendWho('n-"' .. cleanSender .. '"')
+                else
+                    -- OFF-REPLY logic
+                    if conf.replyOff and conf.replyOff ~= "" then
+                        SendChatMessage(conf.replyOff, "WHISPER", nil, sender)
+                    end
                 end
             end
         end
