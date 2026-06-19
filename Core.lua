@@ -3,7 +3,7 @@
 
 GManager = GManager or {}
 local addon = GManager
-addon.version = "1.3.1" -- 1.3.1: Stronger WhoFrame suppression for silent auto-invite level checks
+addon.version = "1.3.2" -- 1.3.2: 0 minutes in Auto Group Invite = infinite (no timer) like Macro Spam total limit
 
 local LOG_MAX = 15000        -- cap log size per guild to prevent unbounded growth
 local SNAPSHOT_DEBOUNCE = 2 -- seconds; coalesce burst GUILD_ROSTER_UPDATE events
@@ -27,6 +27,9 @@ local function ensureDB()
     if type(GManagerDB.macros) ~= "table" then GManagerDB.macros = {} end
     if not GManagerDB.version then GManagerDB.version = 3 end
     if not GManagerDB.batchSize then GManagerDB.batchSize = 2 end 
+    if GManagerDB.showMinimapButton == nil then GManagerDB.showMinimapButton = true end
+    if not GManagerDB.minimapRotation then GManagerDB.minimapRotation = 0 end
+    if not GManagerDB.minimapDistance then GManagerDB.minimapDistance = 80 end
     if type(GManagerDB.autoInvite) ~= "table" then
         GManagerDB.autoInvite = {
             enabled = false,
@@ -41,7 +44,10 @@ local function ensureDB()
         if GManagerDB.autoInvite.groupinv == nil then GManagerDB.autoInvite.groupinv = "" end
         if GManagerDB.autoInvite.minLvl == nil then GManagerDB.autoInvite.minLvl = 1 end
         if GManagerDB.autoInvite.replyLow == nil then GManagerDB.autoInvite.replyLow = "" end
+        if GManagerDB.autoInvite.groupMinutes == nil then GManagerDB.autoInvite.groupMinutes = 15 end
+        -- 0 means infinite (no timer) for non-Permanent mode, matching spam total limit
     end
+    if not GManagerDB.spamTotalMinutes then GManagerDB.spamTotalMinutes = 0 end
 end
 
 -- =========================================================
@@ -341,11 +347,15 @@ function addon:StartGroupInvite(minutes)
     self.groupInviteActive = true
     print("|cFFFFCC00GManager|r: Group Auto-Invite mode enabled.")
     if not self.groupInvitePermanent then
-        delayCall(minutes * 60, function()
-            if self.groupInviteActive and not self.groupInvitePermanent then
-                self:StopGroupInvite()
-            end
-        end)
+        local mins = tonumber(minutes) or 15
+        if mins > 0 then
+            delayCall(mins * 60, function()
+                if self.groupInviteActive and not self.groupInvitePermanent then
+                    self:StopGroupInvite()
+                end
+            end)
+        end
+        -- if mins == 0 treat as infinite (no timer), like Macro Spam total=0
     end
 end
 
@@ -354,6 +364,97 @@ function addon:StopGroupInvite()
     print("|cFFFFCC00GManager|r: Group Auto-Invite mode disabled.")
     if addon.UI and addon.UI.RefreshIfShown then addon.UI:RefreshIfShown() end
 end
+
+-- =========================================================
+-- Minimap Button (positioned via Rotation + Distance)
+-- =========================================================
+local minimapButton
+
+local function updateMinimapButtonPosition()
+    if not minimapButton or not Minimap then return end
+    local rot = (GManagerDB and GManagerDB.minimapRotation or 0) % 360
+    if rot < 0 then rot = 0 end
+    if rot > 360 then rot = 360 end
+    local dist = GManagerDB and GManagerDB.minimapDistance or 80
+    if dist < 20 then dist = 20 end
+    if dist > 240 then dist = 240 end
+    local rad = math.rad(rot)
+    local x = math.cos(rad) * dist
+    local y = math.sin(rad) * dist
+    minimapButton:ClearAllPoints()
+    -- Always position the CENTER of the button (and therefore center of icon + ring).
+    -- This gives clean circular motion at the exact distance value.
+    minimapButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
+end
+
+local function createMinimapButton()
+    if minimapButton or not Minimap then return end
+
+    -- Standard small button frame (32x32) for compact hitbox on the minimap.
+    -- Ring is oversized so its built-in alpha cleanly hides/cuts the square corners of the icon.
+    local b = CreateFrame("Button", "GManagerMinimapButton", Minimap)
+    b:SetSize(32, 32)
+    b:SetFrameStrata("MEDIUM")
+    b:SetFrameLevel((Minimap:GetFrameLevel() or 0) + 8)
+
+    -- The icon (GManager.tga) drawn smaller and centered so the ring frames it.
+    local icon = b:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(18, 18)
+    icon:SetPoint("CENTER")
+    icon:SetTexture("Interface\\AddOns\\GManager\\GManager")
+    -- Slight inset so the square .tga corners are cropped before the ring's alpha finishes the job
+    icon:SetTexCoord(0.06, 0.94, 0.06, 0.94)
+    b.icon = icon
+
+    -- Ring/border (54-56 is typical). Larger than the button frame so the ring visually floats around the icon.
+    local border = b:CreateTexture(nil, "OVERLAY")
+    border:SetSize(56, 56)
+    border:SetPoint("TOPLEFT", -1, 1)
+    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    b.border = border
+
+    -- Square highlight restricted to the icon only (so it doesn't light up the whole ring area)
+    b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
+    local ht = b:GetHighlightTexture()
+    if ht then
+        ht:SetBlendMode("ADD")
+        ht:SetPoint("CENTER", icon)
+        ht:SetSize(18, 18)
+    end
+
+    b:SetScript("OnClick", function(_, mouseBtn)
+        if mouseBtn == "LeftButton" and addon.UI and addon.UI.Toggle then
+            addon.UI:Toggle()
+        end
+    end)
+
+    b:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("|cFFFFCC00GManager|r")
+        GameTooltip:AddLine("Left-click to open/close", 0.8, 0.8, 0.8)
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+    minimapButton = b
+    updateMinimapButtonPosition()
+end
+
+function addon:UpdateMinimapButton()
+    local enabled = GManagerDB and GManagerDB.showMinimapButton
+    if enabled then
+        if not minimapButton then createMinimapButton() end
+        if minimapButton then
+            minimapButton:Show()
+            updateMinimapButtonPosition()
+        end
+    else
+        if minimapButton then minimapButton:Hide() end
+    end
+end
+
+-- also expose for direct position refresh from sliders
+addon.UpdateMinimapPos = updateMinimapButtonPosition
 
 -- =========================================================
 -- Roster Request Helpers
@@ -518,6 +619,8 @@ addon.spamTimer = 0
 addon.spamInterval = 5
 addon.spamActive = false
 addon.spamMacros = addon.spamMacros or {}
+addon.spamTotalLimit = 0      -- total minutes limit (0 = no limit)
+addon.spamTotalElapsed = 0    -- seconds elapsed for total limit
 
 local spamUpdater = CreateFrame("Frame")
 spamUpdater:SetScript("OnUpdate", function(self, elapsed)
@@ -531,6 +634,19 @@ spamUpdater:SetScript("OnUpdate", function(self, elapsed)
                         addon:SendMacro(i)
                     end
                 end
+            end
+        end
+
+        -- Total time limit for spam
+        if addon.spamTotalLimit and addon.spamTotalLimit > 0 then
+            addon.spamTotalElapsed = (addon.spamTotalElapsed or 0) + elapsed
+            if addon.spamTotalElapsed >= (addon.spamTotalLimit * 60) then
+                addon.spamActive = false
+                addon.spamTotalElapsed = 0
+                if addon.UI and addon.UI.RefreshIfShown then
+                    addon.UI:RefreshIfShown()
+                end
+                print("|cFFFFCC00GManager|r: Macro spam stopped (total time limit reached).")
             end
         end
     end
@@ -569,12 +685,17 @@ backend:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4, arg5,
     if event == "ADDON_LOADED" then
         if arg1 == "GManager" then
             ensureDB()
+            if GManagerDB and GManagerDB.spamTotalMinutes then
+                addon.spamTotalLimit = GManagerDB.spamTotalMinutes
+            end
+            if addon.UpdateMinimapButton then addon:UpdateMinimapButton() end
         elseif arg1 == "Blizzard_GuildUI" then
             hookGuildFrame() 
         end
     elseif event == "PLAYER_LOGIN" then
         hookGuildFrame() 
         if IsInGuild() then GuildRoster() end
+        if addon.UpdateMinimapButton then addon:UpdateMinimapButton() end
     elseif event == "GUILD_ROSTER_UPDATE" then
         if IsInGuild() then scheduleDiff() end
     elseif event == "WHO_LIST_UPDATE" then

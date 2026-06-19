@@ -345,11 +345,19 @@ local function build()
     local function makeViewBtn(label, viewKey)
         local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
         b:SetSize(86, 22)
-        b:SetText(label)
+        b:SetText("|cFFFFCC00" .. label .. "|r")
+        local fs = b:GetFontString()
+        if fs then fs:SetTextColor(1, 0.8, 0) end
         b:SetScript("OnClick", function(self)
             activeView = viewKey
-            for _, btn in pairs(f.tabButtons) do btn:UnlockHighlight() end
+            for _, btn in pairs(f.tabButtons) do
+                btn:UnlockHighlight()
+                local fs = btn:GetFontString()
+                if fs then fs:SetTextColor(1, 0.8, 0) end
+            end
             self:LockHighlight()
+            local fs = self:GetFontString()
+            if fs then fs:SetTextColor(1, 0.8, 0) end
             UI:Refresh()
         end)
         f.tabButtons[viewKey] = b
@@ -395,7 +403,8 @@ local function build()
 
     local fpTitle = f.filterPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fpTitle:SetPoint("TOP", 0, -8)
-    fpTitle:SetText("Display Changes")
+    fpTitle:SetText("|cFFFFCC00Display Changes|r")
+    fpTitle:SetTextColor(1, 0.8, 0)
 
     f.filterChecks = {}
     local cbY = -30
@@ -503,7 +512,9 @@ local function build()
     f.rosterONoteEmptyBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.rosterONoteEmptyBtn:SetSize(150, 24)
     f.rosterONoteEmptyBtn:SetPoint( "TOPRIGHT", -18, -102)
-    f.rosterONoteEmptyBtn:SetText("ONote Empty Newbies")
+    f.rosterONoteEmptyBtn:SetText("|cFFFFCC00ONote Empty Newbies|r")
+    local fs = f.rosterONoteEmptyBtn:GetFontString()
+    if fs then fs:SetTextColor(1, 0.8, 0) end
     f.rosterONoteEmptyBtn:SetScript("OnClick", function()
         local list = {}
         for i = 1, GetNumGuildMembers() do
@@ -586,7 +597,8 @@ local function build()
 
     f.rankConfigLabel = f.ranksConfigPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     f.rankConfigLabel:SetPoint("TOP", 0, -10)
-    f.rankConfigLabel:SetText("Mass Promote Criteria")
+    f.rankConfigLabel:SetText("|cFFFFCC00Mass Promote Criteria|r")
+    f.rankConfigLabel:SetTextColor(1, 0.8, 0)
 
     f.rankRows = {}
     for i = 2, 10 do
@@ -679,7 +691,9 @@ local function build()
     f.ranksMultiPromoteBtn = CreateFrame("Button", nil, f.ranksConfigPanel, "UIPanelButtonTemplate")
     f.ranksMultiPromoteBtn:SetSize(180, 26)
     f.ranksMultiPromoteBtn:SetPoint("BOTTOM", 0, 15)
-    f.ranksMultiPromoteBtn:SetText("Mass Promote Selected")
+    f.ranksMultiPromoteBtn:SetText("|cFFFFCC00Mass Promote Selected|r")
+    local fs = f.ranksMultiPromoteBtn:GetFontString()
+    if fs then fs:SetTextColor(1, 0.8, 0) end
     f.ranksMultiPromoteBtn:SetScript("OnClick", function()
         local rows = addon.RanksRowsCache or {}
         if #rows == 0 then
@@ -714,6 +728,8 @@ local function build()
         b:SetNormalFontObject("GameFontNormal")
         b:SetHighlightFontObject("GameFontHighlight")
         b:SetText(def.label)
+        local fs = b:GetFontString()
+        if fs then fs:SetTextColor(1, 0.8, 0) end
         b:GetFontString():SetJustifyH("LEFT")
         b:GetFontString():ClearAllPoints()
         b:GetFontString():SetPoint("LEFT", b, "LEFT", 0, 0)
@@ -794,25 +810,33 @@ local function build()
 
         local delBtn = CreateFrame("Button", nil, f.listPanel, "UIPanelButtonTemplate")
         delBtn:SetSize(36, ROW_HEIGHT - 1)
-        delBtn:SetText("Del")
+        delBtn:SetText("|cFFFFCC00Del|r")
+        local fs = delBtn:GetFontString()
+        if fs then fs:SetTextColor(1, 0.8, 0) end
         delBtn:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", -4, rowY)
         delBtn:Hide()
 
         local sendBtn = CreateFrame("Button", nil, f.listPanel, "UIPanelButtonTemplate")
         sendBtn:SetSize(40, ROW_HEIGHT - 1)
-        sendBtn:SetText("Send")
+        sendBtn:SetText("|cFFFFCC00Send|r")
+        fs = sendBtn:GetFontString()
+        if fs then fs:SetTextColor(1, 0.8, 0) end
         sendBtn:SetPoint("RIGHT", delBtn, "LEFT", -2, 0)
         sendBtn:Hide()
 
         local setBtn = CreateFrame("Button", nil, f.listPanel, "UIPanelButtonTemplate")
         setBtn:SetSize(36, ROW_HEIGHT - 1)
-        setBtn:SetText("Set")
+        setBtn:SetText("|cFFFFCC00Set|r")
+        fs = setBtn:GetFontString()
+        if fs then fs:SetTextColor(1, 0.8, 0) end
         setBtn:SetPoint("RIGHT", sendBtn, "LEFT", -2, 0)
         setBtn:Hide()
 
         local editBtn = CreateFrame("Button", nil, f.listPanel, "UIPanelButtonTemplate")
         editBtn:SetSize(40, ROW_HEIGHT - 1)
-        editBtn:SetText("Edit")
+        editBtn:SetText("|cFFFFCC00Edit|r")
+        fs = editBtn:GetFontString()
+        if fs then fs:SetTextColor(1, 0.8, 0) end
         editBtn:SetPoint("RIGHT", setBtn, "LEFT", -2, 0)
         editBtn:Hide()
 
@@ -853,7 +877,9 @@ local function build()
 
     f.altBtnSet = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.altBtnSet:SetSize(60, 22)
-    f.altBtnSet:SetText("Set")
+    f.altBtnSet:SetText("|cFFFFCC00Set|r")
+    local fs = f.altBtnSet:GetFontString()
+    if fs then fs:SetTextColor(1, 0.8, 0) end
     f.altBtnSet:SetPoint("LEFT", f.altInputMain, "RIGHT", 8, 0)
     f.altBtnSet:SetScript("OnClick", function()
         local a = f.altInputAlt:GetText()
@@ -869,7 +895,9 @@ local function build()
 
     f.altBtnUnset = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.altBtnUnset:SetSize(60, 22)
-    f.altBtnUnset:SetText("Unset")
+    f.altBtnUnset:SetText("|cFFFFCC00Unset|r")
+    local fs = f.altBtnUnset:GetFontString()
+    if fs then fs:SetTextColor(1, 0.8, 0) end
     f.altBtnUnset:SetPoint("LEFT", f.altBtnSet, "RIGHT", 4, 0)
     f.altBtnUnset:SetScript("OnClick", function()
         local a = f.altInputAlt:GetText()
@@ -912,7 +940,9 @@ local function build()
         local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
         local width = #opt > 2 and 56 or 26
         b:SetSize(width, 20)
-        b:SetText(opt)
+        b:SetText("|cFFFFCC00" .. opt .. "|r")
+        local fs = b:GetFontString()
+        if fs then fs:SetTextColor(1, 0.8, 0) end
         if prevChanBtn then
             b:SetPoint("LEFT", prevChanBtn, "RIGHT", 2, 0)
         else
@@ -929,7 +959,9 @@ local function build()
 
     f.macroSaveBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.macroSaveBtn:SetSize(80, 22)
-    f.macroSaveBtn:SetText("Save Macro")
+    f.macroSaveBtn:SetText("|cFFFFCC00Save Macro|r")
+    local fs = f.macroSaveBtn:GetFontString()
+    if fs then fs:SetTextColor(1, 0.8, 0) end
     f.macroSaveBtn:SetPoint("TOPLEFT", f.macroChanLabel, "BOTTOMLEFT", 0, -28)
 
     -- MISSING FRAME CREATION ADDED HERE
@@ -939,6 +971,9 @@ local function build()
     f.macroSpamCB:SetScript("OnClick", function(self)
         addon.spamActive = self:GetChecked()
         addon.spamInterval = tonumber(f.macroSpamInterval:GetText()) or 5
+        addon.spamTotalLimit = tonumber(f.macroSpamTotal and f.macroSpamTotal:GetText()) or 0
+        if GManagerDB then GManagerDB.spamTotalMinutes = addon.spamTotalLimit end
+        addon.spamTotalElapsed = 0  -- reset total timer on (re)start
 
         local hasActive = false
         if addon.spamMacros then
@@ -951,6 +986,7 @@ local function build()
             print("|cFFFFCC00GManager|r: Please 'Set' at least one macro first.")
             self:SetChecked(false)
             addon.spamActive = false
+            addon.spamTotalElapsed = 0
         end
         addon.spamTimer = 0 -- Reset timer
     end)
@@ -975,6 +1011,32 @@ local function build()
     f.macroSpamMinLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.macroSpamMinLabel:SetPoint("LEFT", f.macroSpamInterval, "RIGHT", 4, 0)
     f.macroSpamMinLabel:SetText("minutes")
+
+    -- Second minutes field: total time limit for spam
+    f.macroSpamTotalLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.macroSpamTotalLabel:SetPoint("LEFT", f.macroSpamMinLabel, "RIGHT", 8, 0)
+    f.macroSpamTotalLabel:SetText("for the next: ")
+    f.macroSpamTotal = CreateFrame("EditBox", "GManagerMacroSpamTotal", f, "InputBoxTemplate")
+    f.macroSpamTotal:SetSize(30, 24)
+    f.macroSpamTotal:SetPoint("LEFT", f.macroSpamTotalLabel, "RIGHT", 4, 0)
+    f.macroSpamTotal:SetNumeric(true)
+    f.macroSpamTotal:SetAutoFocus(false)
+    f.macroSpamTotal:SetText("0")
+    f.macroSpamTotal:SetScript("OnTextChanged", function(self)
+        addon.spamTotalLimit = tonumber(self:GetText()) or 0
+        if GManagerDB then GManagerDB.spamTotalMinutes = addon.spamTotalLimit end
+    end)
+    f.macroSpamTotal:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.macroSpamTotal:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    f.macroSpamTotalMinLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.macroSpamTotalMinLabel:SetPoint("LEFT", f.macroSpamTotal, "RIGHT", 2, 0)
+    f.macroSpamTotalMinLabel:SetText("minutes ( 0 = Infinite)")
+
+    if GManagerDB then
+        local tval = GManagerDB.spamTotalMinutes or 0
+        f.macroSpamTotal:SetText(tostring(tval))
+        addon.spamTotalLimit = tval
+    end
 
     f.macroSaveBtn:SetScript("OnClick", function()
         local text = f.macroMsg:GetText() or ""
@@ -1010,8 +1072,9 @@ local function build()
 
     -- ===== Settings View Components =====
     f.batchSizeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.batchSizeLabel:SetPoint( "TOPRIGHT", -90, -90)
-    f.batchSizeLabel:SetText("Mass Action Batch Size (per sec):")
+    f.batchSizeLabel:SetPoint( "TOPRIGHT", -84, -230)
+    f.batchSizeLabel:SetText("|cFFFFCC00Mass Action Batch Size (per sec):|r")
+    f.batchSizeLabel:SetTextColor(1, 0.8, 0)
 
     f.batchSizeInput = CreateFrame("EditBox", "GManagerBatchSize", f, "InputBoxTemplate")
     f.batchSizeInput:SetSize(26, 20)
@@ -1042,9 +1105,116 @@ local function build()
     f.closeWithGuildLabel:SetPoint("LEFT", f.closeWithGuildCB, "RIGHT", 4, 0)
     f.closeWithGuildLabel:SetText("Close GManager with Guild Frame")
 
+    -- Minimap Button in Settings
+    f.showMinimapCB = CreateFrame("CheckButton", "GManagerShowMinimapCB", f, "OptionsBaseCheckButtonTemplate")
+    f.showMinimapCB:SetSize(20, 20)
+    f.showMinimapCB:SetPoint("TOPRIGHT", -120, -90)
+    f.showMinimapCB:SetScript("OnClick", function(self)
+        if GManagerDB then
+            GManagerDB.showMinimapButton = self:GetChecked() and true or false
+            if addon.UpdateMinimapButton then addon:UpdateMinimapButton() end
+        end
+    end)
+    f.showMinimapLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.showMinimapLabel:SetPoint("RIGHT", f.showMinimapCB, "LEFT", -4, 0)
+    f.showMinimapLabel:SetText("Show Minimap Button")
+
+    f.minimapCtrlLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.minimapCtrlLabel:SetPoint("TOPRIGHT",f.showMinimapCB, -10, -24)
+    f.minimapCtrlLabel:SetText("|cFFFFCC00Minimap Button Position|r")
+    f.minimapCtrlLabel:SetTextColor(1, 0.8, 0)
+
+    -- Rotation slider
+    f.minimapRotLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.minimapRotLabel:SetPoint("TOPLEFT", f.minimapCtrlLabel, "BOTTOMLEFT", 0, -8)
+    f.minimapRotLabel:SetText("|cFFFFCC00Rotation|r")
+    f.minimapRotLabel:SetTextColor(1, 0.8, 0)
+
+    f.minimapRotSlider = CreateFrame("Slider", nil, f)
+    f.minimapRotSlider:SetOrientation("HORIZONTAL")
+    f.minimapRotSlider:SetSize(150, 16)
+    f.minimapRotSlider:SetPoint("LEFT", f.minimapRotLabel, "RIGHT", 6, 0)
+    f.minimapRotSlider:SetMinMaxValues(0, 360)
+    f.minimapRotSlider:SetValueStep(5)
+    f.minimapRotSlider:SetBackdrop({
+        bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
+        edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
+        tile = true, tileSize = 8, edgeSize = 8,
+        insets = { left = 3, right = 3, top = 6, bottom = 6 }
+    })
+    f.minimapRotSlider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+    local rotThumb = f.minimapRotSlider:GetThumbTexture()
+    if rotThumb then rotThumb:SetSize(14, 20) end
+    f.minimapRotLow = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.minimapRotLow:SetPoint("TOPLEFT", f.minimapRotSlider, "BOTTOMLEFT", 2, 0)
+    f.minimapRotLow:SetText("0")
+    f.minimapRotHigh = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.minimapRotHigh:SetPoint("TOPRIGHT", f.minimapRotSlider, "BOTTOMRIGHT", -2, 0)
+    f.minimapRotHigh:SetText("360")
+    f.minimapRotVal = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.minimapRotVal:SetPoint("LEFT", f.minimapRotSlider, "RIGHT", 6, 0)
+    f.minimapRotSlider:SetScript("OnValueChanged", function(self, val)
+        local v = math.floor(val / 5 + 0.5) * 5
+        if v < 0 then v = 0 end
+        if v > 360 then v = 360 end
+        if GManagerDB then GManagerDB.minimapRotation = v end
+        if f.minimapRotVal then f.minimapRotVal:SetText(tostring(v)) end
+        if addon.UpdateMinimapPos then addon.UpdateMinimapPos() end
+    end)
+
+    -- Distance slider
+    f.minimapDistLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.minimapDistLabel:SetPoint("TOPLEFT", f.minimapRotLabel, "BOTTOMLEFT", 0, -16)
+    f.minimapDistLabel:SetText("|cFFFFCC00Distance|r")
+    f.minimapDistLabel:SetTextColor(1, 0.8, 0)
+
+    f.minimapDistSlider = CreateFrame("Slider", nil, f)
+    f.minimapDistSlider:SetOrientation("HORIZONTAL")
+    f.minimapDistSlider:SetSize(150, 16)
+    f.minimapDistSlider:SetPoint("LEFT", f.minimapDistLabel, "RIGHT", 6, 0)
+    f.minimapDistSlider:SetMinMaxValues(20, 240)
+    f.minimapDistSlider:SetValueStep(2)
+    f.minimapDistSlider:SetBackdrop({
+        bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
+        edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
+        tile = true, tileSize = 8, edgeSize = 8,
+        insets = { left = 3, right = 3, top = 6, bottom = 6 }
+    })
+    f.minimapDistSlider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+    local distThumb = f.minimapDistSlider:GetThumbTexture()
+    if distThumb then distThumb:SetSize(14, 20) end
+    f.minimapDistLow = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.minimapDistLow:SetPoint("TOPLEFT", f.minimapDistSlider, "BOTTOMLEFT", 2, 0)
+    f.minimapDistLow:SetText("20")
+    f.minimapDistHigh = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.minimapDistHigh:SetPoint("TOPRIGHT", f.minimapDistSlider, "BOTTOMRIGHT", -2, 0)
+    f.minimapDistHigh:SetText("240")
+    f.minimapDistVal = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.minimapDistVal:SetPoint("LEFT", f.minimapDistSlider, "RIGHT", 6, 0)
+    f.minimapDistSlider:SetScript("OnValueChanged", function(self, val)
+        local v = math.floor(val / 2 + 0.5) * 2
+        if v < 20 then v = 20 end
+        if v > 240 then v = 240 end
+        if GManagerDB then GManagerDB.minimapDistance = v end
+        if f.minimapDistVal then f.minimapDistVal:SetText(tostring(v)) end
+        if addon.UpdateMinimapPos then addon.UpdateMinimapPos() end
+    end)
+
+    -- init slider thumbs from current DB values at build time
+    if GManagerDB then
+        local ir = GManagerDB.minimapRotation or 0
+        f.minimapRotSlider:SetValue(ir)
+        if f.minimapRotVal then f.minimapRotVal:SetText(tostring(ir)) end
+        local id = math.max(20, math.min(240, GManagerDB.minimapDistance or 80))
+        if GManagerDB then GManagerDB.minimapDistance = id end
+        f.minimapDistSlider:SetValue(id)
+        if f.minimapDistVal then f.minimapDistVal:SetText(tostring(id)) end
+    end
+
     f.autoInvLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.autoInvLabel:SetPoint("BOTTOMLEFT", 24, 120)
-    f.autoInvLabel:SetText("Auto Guild  Invite")
+    f.autoInvLabel:SetText("|cFFFFCC00Auto Guild  Invite|r")
+    f.autoInvLabel:SetTextColor(1, 0.8, 0)
 
     f.autoInvCB = CreateFrame("CheckButton", "GManagerAutoInvCB", f, "OptionsBaseCheckButtonTemplate")
     f.autoInvCB:SetSize(24, 24)
@@ -1103,11 +1273,12 @@ local function build()
 
     f.groupInviteLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.groupInviteLabel:SetPoint("BOTTOMLEFT", f.autoInvCB, "BOTTOMLEFT", 0, 170)
-    f.groupInviteLabel:SetText("Auto Group Invite")
+    f.groupInviteLabel:SetText("|cFFFFCC00Auto Group Invite|r")
+    f.groupInviteLabel:SetTextColor(1, 0.8, 0)
 
     f.groupInviteCheck = CreateFrame("CheckButton", "GManagerGroupInviteCheck", f, "InterfaceOptionsCheckButtonTemplate")
     f.groupInviteCheck:SetPoint("TOPLEFT", f.groupInviteLabel, "BOTTOMLEFT", 0, -13)
-    GManagerGroupInviteCheckText:SetText("Auto Grp On/Off (for 15min)")
+    GManagerGroupInviteCheckText:SetText("Auto Group On/Off: ")
 
     f.groupInviteEditBoxLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.groupInviteEditBoxLabel:SetPoint("BOTTOMLEFT", f.groupInviteCheck , "RIGHT", -19, -34)
@@ -1126,14 +1297,35 @@ local function build()
     end)
 
     f.groupInvitePermCheck = CreateFrame("CheckButton", "GManagerGroupInvitePermCheck", f, "InterfaceOptionsCheckButtonTemplate")
-    f.groupInvitePermCheck:SetPoint("LEFT", GManagerGroupInviteCheckText, "RIGHT", 8, -1)
+    f.groupInvitePermCheck:SetPoint("LEFT", f.groupInviteMinutes, "RIGHT", 30, -1)
     GManagerGroupInvitePermCheckText:SetText("Permanent")
+
+    -- Minutes value for temporary duration (used when Permanent is off, default 15; 0 = infinite like Macro Spam)
+    f.groupInviteMinutes = CreateFrame("EditBox", "GManagerGroupInviteMinutes", f, "InputBoxTemplate")
+    f.groupInviteMinutes:SetSize(28, 20)
+    f.groupInviteMinutes:SetPoint("LEFT", GManagerGroupInviteCheckText, "RIGHT", 8, 0)
+    f.groupInviteMinutes:SetNumeric(true)
+    f.groupInviteMinutes:SetAutoFocus(false)
+    f.groupInviteMinutes:SetText("15")
+    f.groupInviteMinutes:SetScript("OnTextChanged", function(self)
+        if GManagerDB and GManagerDB.autoInvite then
+            local v = tonumber(self:GetText())
+            GManagerDB.autoInvite.groupMinutes = (v ~= nil) and v or 15
+        end
+    end)
+    f.groupInviteMinutes:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.groupInviteMinutes:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+
+    if GManagerDB and GManagerDB.autoInvite and GManagerDB.autoInvite.groupMinutes then
+        f.groupInviteMinutes:SetText(tostring(GManagerDB.autoInvite.groupMinutes))
+    end
 
     f.groupInviteCheck:SetScript("OnClick", function(self)
         local checked = self:GetChecked()
         if checked then
             addon.groupInvitePermanent = f.groupInvitePermCheck:GetChecked()
-            addon:StartGroupInvite(15)
+            local mins = tonumber(f.groupInviteMinutes and f.groupInviteMinutes:GetText()) or 15
+            addon:StartGroupInvite(mins)
         else
             addon:StopGroupInvite()
         end
@@ -1146,7 +1338,8 @@ local function build()
             if checked then
                 print("|cFFFFCC00Guild Manager|r: Group Auto-Invite mode set to permanent.")
             else
-                addon:StartGroupInvite(15)
+                local mins = tonumber(f.groupInviteMinutes and f.groupInviteMinutes:GetText()) or 15
+                addon:StartGroupInvite(mins)
             end
         end
     end)
@@ -1154,8 +1347,14 @@ local function build()
     f:HookScript("OnShow", function()
         if f.groupInviteCheck then f.groupInviteCheck:SetChecked(addon.groupInviteActive) end
         if f.groupInvitePermCheck then f.groupInvitePermCheck:SetChecked(addon.groupInvitePermanent) end
-        if GManagerDB and GManagerDB.autoInvite and f.groupInviteEditBox then
-            f.groupInviteEditBox:SetText(GManagerDB.autoInvite.groupinv or "")
+        if GManagerDB and GManagerDB.autoInvite then
+            if f.groupInviteEditBox then
+                f.groupInviteEditBox:SetText(GManagerDB.autoInvite.groupinv or "")
+            end
+            if f.groupInviteMinutes then
+                local m = GManagerDB.autoInvite.groupMinutes or 15
+                f.groupInviteMinutes:SetText(tostring(m))
+            end
         end
     end)
 
@@ -1166,6 +1365,11 @@ local function build()
         edgeSize = 1,
         insets = { left = 0, right = 0, top = 0, bottom = 0 }
     })
+
+    f.groupInviteMinLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.groupInviteMinLabel:SetPoint("LEFT", f.groupInviteMinutes, "RIGHT", 4, 0)
+    f.groupInviteMinLabel:SetText("Minutes (0 = Infinite)")
+
     f.groupInviteBg:SetBackdropColor(0.05, 0.05, 0.05, 0.6)
     f.groupInviteBg:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
     f.groupInviteBg:SetPoint("TOPLEFT", f.groupInviteCheck, "TOPLEFT", -6, 5)
@@ -1188,7 +1392,9 @@ local function build()
 
     f.clearLogBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.clearLogBtn:SetSize(150, 24)
-    f.clearLogBtn:SetText("Clear Log")
+    f.clearLogBtn:SetText("|cFFFFCC00Clear Log|r")
+    local fs = f.clearLogBtn:GetFontString()
+    if fs then fs:SetTextColor(1, 0.8, 0) end
     f.clearLogBtn:SetPoint("BOTTOMRIGHT", -18, 18)
     f.clearLogBtn:SetScript("OnClick", function()
         addon:ClearLog()
@@ -1629,6 +1835,9 @@ function UI:Refresh()
     setVis(f.macroSpamLabel, macrosMode)
     setVis(f.macroSpamInterval, macrosMode)
     setVis(f.macroSpamMinLabel, macrosMode)
+    setVis(f.macroSpamTotalLabel, macrosMode)
+    setVis(f.macroSpamTotal, macrosMode)
+    setVis(f.macroSpamTotalMinLabel, macrosMode)
 
     setVis(f.ranksConfigPanel, ranksMode)
     if ranksMode then
@@ -1652,6 +1861,19 @@ function UI:Refresh()
     setVis(f.openWithGuildLabel, settingsMode)
     setVis(f.closeWithGuildCB, settingsMode)
     setVis(f.closeWithGuildLabel, settingsMode)
+    setVis(f.showMinimapCB, settingsMode)
+    setVis(f.showMinimapLabel, settingsMode)
+    setVis(f.minimapCtrlLabel, settingsMode)
+    setVis(f.minimapRotSlider, settingsMode)
+    setVis(f.minimapRotLabel, settingsMode)
+    setVis(f.minimapRotVal, settingsMode)
+    setVis(f.minimapRotLow, settingsMode)
+    setVis(f.minimapRotHigh, settingsMode)
+    setVis(f.minimapDistSlider, settingsMode)
+    setVis(f.minimapDistLabel, settingsMode)
+    setVis(f.minimapDistVal, settingsMode)
+    setVis(f.minimapDistLow, settingsMode)
+    setVis(f.minimapDistHigh, settingsMode)
     setVis(f.autoInvLabel, settingsMode)
     setVis(f.autoInvCB, settingsMode)
     setVis(f.autoInvCBLabel, settingsMode)
@@ -1667,6 +1889,8 @@ function UI:Refresh()
     if f.groupInviteCheck then setVis(f.groupInviteCheck, groupInviteMode) end
     if f.groupInviteEditBox then setVis(f.groupInviteEditBox, groupInviteMode); setVis(f.groupInviteEditBoxLabel, groupInviteMode) end
     if f.groupInvitePermCheck then setVis(f.groupInvitePermCheck, groupInviteMode) end
+    if f.groupInviteMinLabel then setVis(f.groupInviteMinLabel, groupInviteMode) end
+    if f.groupInviteMinutes then setVis(f.groupInviteMinutes, groupInviteMode) end
     if f.groupInviteBg then setVis(f.groupInviteBg, groupInviteMode) end
 
     if settingsMode and GManagerDB then
@@ -1681,6 +1905,9 @@ function UI:Refresh()
             if not f.aiOff:HasFocus()    then f.aiOff:SetText(conf.replyOff or "") end
             if not f.aiMinLvl:HasFocus() then f.aiMinLvl:SetText(tostring(conf.minLvl or 1)) end
             if not f.aiReplyLow:HasFocus() then f.aiReplyLow:SetText(conf.replyLow or "") end
+            if f.groupInviteMinutes and not f.groupInviteMinutes:HasFocus() then
+                f.groupInviteMinutes:SetText(tostring(conf.groupMinutes or 15))
+            end
         end
     end
 
@@ -1688,6 +1915,11 @@ function UI:Refresh()
         if f.macroSpamCB then f.macroSpamCB:SetChecked(addon.spamActive) end
         if f.macroSpamInterval and not f.macroSpamInterval:HasFocus() then
             f.macroSpamInterval:SetText(tostring(addon.spamInterval or 5))
+        end
+        if f.macroSpamTotal and not f.macroSpamTotal:HasFocus() then
+            local t = (GManagerDB and GManagerDB.spamTotalMinutes) or addon.spamTotalLimit or 0
+            f.macroSpamTotal:SetText(tostring(t))
+            addon.spamTotalLimit = t
         end
     end
 
@@ -1713,6 +1945,20 @@ function UI:Refresh()
         if GManagerCharDB then
             f.openWithGuildCB:SetChecked(GManagerCharDB.openWithGuild)
             f.closeWithGuildCB:SetChecked(GManagerCharDB.closeWithGuild)
+        end
+        if f.showMinimapCB then
+            f.showMinimapCB:SetChecked(GManagerDB.showMinimapButton ~= false)
+        end
+        if f.minimapRotSlider then
+            local r = GManagerDB.minimapRotation or 0
+            f.minimapRotSlider:SetValue(r)
+            if f.minimapRotVal then f.minimapRotVal:SetText(tostring(r)) end
+        end
+        if f.minimapDistSlider then
+            local d = math.max(20, math.min(240, GManagerDB.minimapDistance or 80))
+            if GManagerDB then GManagerDB.minimapDistance = d end
+            f.minimapDistSlider:SetValue(d)
+            if f.minimapDistVal then f.minimapDistVal:SetText(tostring(d)) end
         end
     elseif logMode then
         data, total = collectLogRows()
@@ -1743,6 +1989,8 @@ function UI:Refresh()
     if macrosMode then
         for opt, b in pairs(f.macroChanBtns) do
             if opt == macroSelectedChannel then b:LockHighlight() else b:UnlockHighlight() end
+            local fs = b:GetFontString()
+            if fs then fs:SetTextColor(1, 0.8, 0) end
         end
     end
 
@@ -1757,6 +2005,8 @@ function UI:Refresh()
                 local label = def.label
                 if rosterSortBy == def.sort then label = label .. mark end
                 f.colHeaderBtns[def.key]:SetText(label)
+                local fs = f.colHeaderBtns[def.key]:GetFontString()
+                if fs then fs:SetTextColor(1, 0.8, 0) end
             end
         end
 
@@ -1869,7 +2119,21 @@ function UI:Refresh()
                 row:Show()
                 btns.send:Show(); btns.del:Show(); btns.edit:Show(); btns.set:Show()
 
-                btns.set:SetText(isSpam and "|cff00ff00On|r" or "Set")
+                btns.set:SetText(isSpam and "|cff00ff00On|r" or "|cFFFFCC00Set|r")
+                local fs = btns.set:GetFontString()
+                if fs then fs:SetTextColor(1, 0.8, 0) end
+
+                -- force yellow for send/del/edit/set (On stays green)
+                for _, btnName in ipairs({"send", "del", "edit"}) do
+                    local b = btns[btnName]
+                    local bfs = b and b:GetFontString()
+                    if bfs then bfs:SetTextColor(1, 0.8, 0) end
+                end
+                if not isSpam then
+                    local b = btns.set
+                    local bfs = b and b:GetFontString()
+                    if bfs then bfs:SetTextColor(1, 0.8, 0) end
+                end
 
                 local idx = item.index
                 local txt = item.text
@@ -1891,6 +2155,7 @@ function UI:Refresh()
                         for k, v in pairs(addon.spamMacros) do if v then hasActive = true; break end end
                         if not hasActive and addon.spamActive then
                             addon.spamActive = false
+                            addon.spamTotalElapsed = 0
                             if f.macroSpamCB then f.macroSpamCB:SetChecked(false) end
                         end
                     end
