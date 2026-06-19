@@ -1,4 +1,4 @@
-# **GManager (v1.3)**
+# **GManager (v1.3.1)**
 
 GManager is an all-in-one Guild Management addon natively engineered for **World of Warcraft: Wrath of the Lich King (Patch 3.3.5a)**. Built on the classic frame API (`CreateFrame`, `GuildRosterInfo`, `SetWhoToUI`, `FauxScrollFrame`, `EasyMenu` context menus, etc.) it delivers high-volume guild ops without tainting the default UI. Features include deep event logging, alt-character mapping, channel-bound macros, batch rate-limited promote/kick, and smart auto-invite systems with level gating.
 
@@ -6,6 +6,14 @@ GManager is an all-in-one Guild Management addon natively engineered for **World
 
 * **Blizzard GuildFrame Offline Bug**: With GManager loaded the stock `GuildRosterFrame` can get stuck defaulting to "Show Offline Members" after any sort click.  
 * **GManager Roster Tab to the Rescue**: Our custom `ROSTER` view (powered by `collectRosterRows`, live `rosterPlayerSearch` / `rosterNoteSearch` / `rosterOfflineDaysSearch` filters, and `ROSTER_COLS` layout) completely replaces the need to fight the default frame. Right-click context menus (`showRosterContextMenu`) give instant whitelist, promote, demote, whisper and group invite actions.
+
+## **What's New in v1.3.1**
+
+* **Fixed InputBox Clipping of Mass Promotion Criteria** (Ranks tab): The `minDays` / `maxOff` EditBoxes and rank name labels inside the "Mass Promote Criteria" right panel were clipping text and suffering from broken/missing backdrop segments (classic `InputBoxTemplate` + tiling issues on 3.3.5a).  
+  **Fix**: Custom backdrops on every EditBox, explicit `SetTextInsets(5,5,1,1)`, widened `nameStr` FontString to 95px (handles "Senior Member", "Huggies Helper" etc. without truncation), and tightened row anchors/gaps in `ranksConfigPanel`. Criteria inputs now look crisp and fully visible.
+
+* **Fixed Blizzard WhoFrame pop-up on Auto Guild Invite**: Whisper trigger phrases were causing the full `WhoFrame` to flash open every time an auto-invite candidate whispered.  
+  **Fix**: Hardened the `SetWhoToUI(1)` path + exact-name quoting (`SendWho('n-"PlayerName"')`) so `/who` results feed **silently** into the UI data table. `ProcessWhoLevelCheck()` then reads `GetWhoInfo` without ever showing Blizzard's Who window. Zero UI disruption during recruitment spam.
 
 ## **What's New in v1.3**
 
@@ -36,8 +44,8 @@ Filter the roster (name/note/offline-days), preview the list, then execute in sa
 ### **🎖️ Mass Promote List (Ranks Tab)**
 Select a baseline rank in the new Ranks view, set min-days-in-guild + max-offline filters, preview candidates (parsed from officer note date tags like `[Jun 09 2026]`), then batch promote. Respects whitelist. Dynamic `GuildControlGetRankName` / `GuildControlGetNumRanks` integration.
 
-### **✉️ Auto Guild & Party Invites (Enhanced in v1.3)**
-* **Guild Whisper Triggers**: Custom phrase (supports multiple words separated by `-`). When matched, silent `/who` level check → `minLvl` gate → invite or `replyLow`. Configurable `replyOn` / `replyOff` messages. All handled in the `backend` `OnEvent` for `CHAT_MSG_WHISPER` + `WHO_LIST_UPDATE`.
+### **✉️ Auto Guild & Party Invites (Enhanced in v1.3 / v1.3.1)**
+* **Guild Whisper Triggers**: Custom phrase (supports multiple words separated by `-`). When matched, silent `/who` level check → `minLvl` gate → invite or `replyLow`. Configurable `replyOn` / `replyOff` messages. All handled in the `backend` `OnEvent` for `CHAT_MSG_WHISPER` + `WHO_LIST_UPDATE`. (WhoFrame pop-up fully suppressed in 1.3.1)
 * **Party / Group Auto-Invites**: Toggle via Settings → Group Invite section. Temporary (minutes) or **Permanent** mode. Same multi-word trigger support via `containsTriggerWord`. Uses `InviteUnit`.
 * **Rate & Safety**: `delayCall` scheduler, exact-name `/who` quoting, and focus guards on all EditBoxes.
 
@@ -58,7 +66,7 @@ All built with plain Wrath frame API (`UIPanelButtonTemplate`, `InputBoxTemplate
 2. **Roster Tab** – Show offline toggle, player/note search, offline-days threshold, group-alts checkbox, mass-kick button, ONote-empty button. Sortable columns (`rosterSortBy`). Rich right-click menu.
 3. **Alts Tab** – Simple list of alt → main mappings with Set / Unset inputs.
 4. **Macros Tab** – Channel buttons (highlight active), message EditBox + Save, spam interval + enable checkbox. Per-row Send / Delete / Edit / Set-as-spam buttons.
-5. **Ranks Tab** – Baseline rank selector, min-days / max-offline filters, candidate preview table (`collectRanksRows`), mass-promote button. Uses live `GuildControlGet*` calls.
+5. **Ranks Tab** – Baseline rank selector, min-days / max-offline filters (now clip-free in 1.3.1), candidate preview table (`collectRanksRows`), mass-promote button. Uses live `GuildControlGet*` calls.
 6. **Settings Tab (Improved UI)** – 
    - Batch size numeric
    - Open/Close with GuildFrame checkboxes (`GManagerCharDB`)
@@ -82,10 +90,10 @@ Access with `/gm` or `/gmanager`. The main frame (`GManagerMainFrame`) is movabl
 ## **Technical Information**
 
 * **Interface TOC**: 30300 (WotLK 3.3.5a native)
-* **Current Version**: 1.3 (see `addon.version` in `Core.lua`)
+* **Current Version**: 1.3.1 (see `addon.version` in `Core.lua`)
 * **SavedVariables**: `GManagerDB` (account) – guilds, macros, autoInvite config, batchSize, etc.
 * **SavedVariablesPerCharacter**: `GManagerCharDB` – open/close with guild, massPromote history
-* **Files**: `Core.lua` (backend, events, snapshot diff, leave grace, who level checks, spam ticker), `UI.lua` (6-tab frame, all Refresh logic, context menus, Roster/Ranks/Alts/Macros/Settings widgets), `Roster.lua` (Member Detail panel takeover of `GuildMemberDetailFrame`, alt tagging, promote/demote/remove/invite buttons, periodic poll on `GetGuildRosterSelection`)
+* **Files**: `Core.lua` (backend, events, snapshot diff, leave grace, who level checks, spam ticker), `UI.lua` (6-tab frame, all Refresh logic, context menus, Roster/Ranks/Alts/Macros/Settings widgets — InputBox fixes in Ranks panel), `Roster.lua` (Member Detail panel takeover of `GuildMemberDetailFrame`, alt tagging, promote/demote/remove/invite buttons, periodic poll on `GetGuildRosterSelection`)
 * **Key Patterns Used**: `scheduleDiff` + `SNAPSHOT_DEBOUNCE`, `ProcessBatch` with 1-second `OnUpdate` pacing, `containsTriggerWord` multi-word split on `-`, `fmtSince` / `lastSeenColor` helpers, `CLASS_COLOR` + `TYPE_COLOR` strings.
 
 ## **⚖️ Use at Your Own Discretion**
@@ -94,4 +102,4 @@ GManager gives you serious power: batch kicks, mass promotes, auto-invites with 
 
 ---
 
-*Refined for WotLK 3.3.5a – pure Lua, no external dependencies. Questions or pull requests welcome on the classic addon scene.*
+*Refined for WotLK 3.3.5a – pure Lua, no external dependencies. v1.3.1 hotfix release — InputBoxes and WhoFrame tamed. Questions or pull requests welcome on the classic addon scene.*

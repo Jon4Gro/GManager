@@ -3,7 +3,7 @@
 
 GManager = GManager or {}
 local addon = GManager
-addon.version = "1.3" -- Version bump for SetWhoToUI fix
+addon.version = "1.3.1" -- 1.3.1: Stronger WhoFrame suppression for silent auto-invite level checks
 
 local LOG_MAX = 15000        -- cap log size per guild to prevent unbounded growth
 local SNAPSHOT_DEBOUNCE = 2 -- seconds; coalesce burst GUILD_ROSTER_UPDATE events
@@ -495,6 +495,20 @@ function addon:ProcessWhoLevelCheck()
             end
         end
     end
+
+    -- After handling our silent level-check /who, hide the Blizzard Who/FriendsFrame
+    -- ONLY if it was not already open before we sent the query.
+    -- This is the robust fix for the persistent WhoFrame popup on auto-invite triggers.
+    if addon._silentWhoFriendsWasShown == false then
+        if FriendsFrame and FriendsFrame:IsShown() then
+            FriendsFrame:Hide()
+        end
+        if WhoFrame and WhoFrame:IsShown() then
+            WhoFrame:Hide()
+        end
+    end
+    addon._silentWhoFriendsWasShown = nil
+    addon._silentWhoWasShown = nil
 end
 
 -- =========================================================
@@ -579,6 +593,12 @@ backend:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4, arg5,
                     
                     addon.pendingLevelChecks = addon.pendingLevelChecks or {}
                     addon.pendingLevelChecks[cleanSender:lower()] = sender
+                    
+                    -- Record visibility state BEFORE SendWho.
+                    -- We track BOTH FriendsFrame (parent social window) and WhoFrame (the tab)
+                    -- because on some 3.3.5a clients SendWho can force the whole FriendsFrame open.
+                    addon._silentWhoFriendsWasShown = FriendsFrame and FriendsFrame:IsShown() or false
+                    addon._silentWhoWasShown = WhoFrame and WhoFrame:IsShown() or false
                     
                     -- FIXED: Direct /who query results to the UI data table instead of the Chat Frame text line
                     SetWhoToUI(1) 

@@ -601,20 +601,42 @@ local function build()
 
         local nameStr = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         nameStr:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-        nameStr:SetWidth(80)
+        nameStr:SetWidth(95)                 -- wider so "Huggies Helper" / "Senior Member" don't truncate
         nameStr:SetJustifyH("LEFT")
 
-        local minDays = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
-        minDays:SetSize(40, 20)
-        minDays:SetPoint("LEFT", nameStr, "RIGHT", 15, 0)
+        -- Min Days editbox (custom backdrop = no more missing middle)
+        local minDays = CreateFrame("EditBox", nil, row)
+        minDays:SetSize(48, 20)
+        minDays:SetPoint("LEFT", nameStr, "RIGHT", 12, 0)
         minDays:SetAutoFocus(false)
         minDays:SetNumeric(true)
+        minDays:SetFontObject("ChatFontSmall")
+        minDays:SetBackdrop({
+            bgFile   = "Interface\\ChatFrame\\ChatFrameBackground",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 8,
+            insets = { left = 3, right = 3, top = 3, bottom = 3 },
+        })
+        minDays:SetBackdropColor(0, 0, 0, 0.85)
+        minDays:SetTextInsets(5, 5, 1, 1)
+        minDays:SetTextColor(1, 1, 1, 1)
 
-        local maxOff = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
-        maxOff:SetSize(40, 20)
-        maxOff:SetPoint("LEFT", minDays, "RIGHT", 25, 0)
+        -- Max Off editbox
+        local maxOff = CreateFrame("EditBox", nil, row)
+        maxOff:SetSize(48, 20)
+        maxOff:SetPoint("LEFT", minDays, "RIGHT", 18, 0)
         maxOff:SetAutoFocus(false)
         maxOff:SetNumeric(true)
+        maxOff:SetFontObject("ChatFontSmall")
+        maxOff:SetBackdrop({
+            bgFile   = "Interface\\ChatFrame\\ChatFrameBackground",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 8,
+            insets = { left = 3, right = 3, top = 3, bottom = 3 },
+        })
+        maxOff:SetBackdropColor(0, 0, 0, 0.85)
+        maxOff:SetTextInsets(5, 5, 1, 1)
+        maxOff:SetTextColor(1, 1, 1, 1)
 
         local saved = GManagerCharDB and GManagerCharDB.massPromote and GManagerCharDB.massPromote[i] or {}
         cb:SetChecked(saved.checked or false)
