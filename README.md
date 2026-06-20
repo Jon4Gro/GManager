@@ -14,9 +14,7 @@ Features include deep event logging, alt-character mapping, channel-bound macros
 * **Account-Wide Blacklist for Auto Invites**: A single blacklist (saved in `GManagerDB`) now protects **both** Auto Guild Invite and Auto Group Invite. Blacklisted players are silently blocked from triggering invites.
 
 * **Blacklist Management Window**: New **Blacklist...** button in the bottom-right corner of the Settings tab opens a dedicated side window:
-  - Docked to the **right side** of the main GManager window
-  - Height matches the main window
-  - Width set to main width − 30 (390px)
+  - Initially Docked to the **right side** of the main GManager window
   - Add player names via input box (Enter or Add button supported)
   - Easy removal with **Rem** buttons next to each entry
   - Editable **Autoresponse** — a custom message sent to blacklisted players when they whisper a trigger phrase
