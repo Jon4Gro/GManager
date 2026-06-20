@@ -1376,6 +1376,17 @@ local function build()
     f.groupInviteBg:SetPoint("BOTTOMRIGHT", f.groupInviteEditBox, "BOTTOMRIGHT", 6, -13)
     f.groupInviteBg:SetFrameLevel(math.max(0, f.groupInviteCheck:GetFrameLevel() - 1))
 
+    -- Blacklist button (bottom-right corner of Settings view only)
+    f.blacklistBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.blacklistBtn:SetSize(130, 24)
+    f.blacklistBtn:SetPoint("BOTTOMRIGHT", -18, 18)
+    f.blacklistBtn:SetText("|cFFFFCC00Blacklist...|r")
+    local fs = f.blacklistBtn:GetFontString()
+    if fs then fs:SetTextColor(1, 0.8, 0) end
+    f.blacklistBtn:SetScript("OnClick", function()
+        UI:ToggleBlacklistWindow()
+    end)
+    f.blacklistBtn:Hide()
 
     -- ===== Footer (Log mode) =====
     f.numberedCB = CreateFrame("CheckButton", "GManagerNumberedCB", f, "OptionsBaseCheckButtonTemplate")
@@ -1892,6 +1903,7 @@ function UI:Refresh()
     if f.groupInviteMinLabel then setVis(f.groupInviteMinLabel, groupInviteMode) end
     if f.groupInviteMinutes then setVis(f.groupInviteMinutes, groupInviteMode) end
     if f.groupInviteBg then setVis(f.groupInviteBg, groupInviteMode) end
+    setVis(f.blacklistBtn, settingsMode)
 
     if settingsMode and GManagerDB then
         if not f.batchSizeInput:HasFocus() then
@@ -2212,4 +2224,240 @@ end
 
 function UI:Hide()
     if frame then frame:Hide() end
+    if blacklistFrame then blacklistFrame:Hide() end
+end
+
+-- =========================================================
+-- Blacklist Management Window (account-wide, for Auto Group + Guild Invite)
+-- =========================================================
+local blacklistFrame
+local blRows = {}
+local BL_ROW_HEIGHT = 18
+local MAX_BL_ROWS = 25
+
+local function positionBlacklistWindow(f)
+    if frame and frame:IsShown() then
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", frame, "TOPRIGHT", 6, 0)
+        f:SetHeight(frame:GetHeight())
+        f:SetWidth(390)
+    else
+        f:ClearAllPoints()
+        f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+    end
+end
+
+local function buildBlacklistWindow()
+    if blacklistFrame then return blacklistFrame end
+
+    local f = CreateFrame("Frame", "GManagerBlacklistFrame", UIParent)
+    f:SetSize(390, 480)
+    f:SetPoint("CENTER", 0, 60)
+    f:SetBackdrop(BACKDROP)
+    f:SetBackdropColor(0, 0, 0, 1)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:SetClampedToScreen(true)
+    f:SetFrameStrata("HIGH")
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:Hide()
+
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 16, -16)
+    title:SetText("|cFFFFCC00Blacklist|r  |cffaaaaaa(Auto Guild + Group Invite)|r")
+
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", 2, 2)
+
+    -- Name input
+    local nameLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    nameLabel:SetPoint("TOPLEFT", 21, -48)
+    nameLabel:SetText("Player Name")
+
+    local nameInput = CreateFrame("EditBox", "GManagerBLNameInput", f, "InputBoxTemplate")
+    nameInput:SetSize(180, 20)
+    nameInput:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 2, -2)
+    nameInput:SetAutoFocus(false)
+    nameInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    nameInput:SetScript("OnEnterPressed", function(self)
+        local n = self:GetText()
+        if n and n ~= "" then
+            addon:AddToBlacklist(n)
+            self:SetText("")
+        end
+        self:ClearFocus()
+        UI:RefreshBlacklistWindow()
+    end)
+
+    local addBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    addBtn:SetSize(60, 22)
+    addBtn:SetText("|cFFFFCC00Add|r")
+    local fs = addBtn:GetFontString()
+    if fs then fs:SetTextColor(1, 0.8, 0) end
+    addBtn:SetPoint("LEFT", nameInput, "RIGHT", 8, 0)
+    addBtn:SetScript("OnClick", function()
+        local n = nameInput:GetText()
+        if n and n ~= "" then
+            addon:AddToBlacklist(n)
+            nameInput:SetText("")
+            nameInput:ClearFocus()
+            UI:RefreshBlacklistWindow()
+        end
+    end)
+
+    -- List container
+    local listPanel = CreateFrame("Frame", nil, f)
+    listPanel:SetPoint("TOPLEFT", 16, -85)
+    listPanel:SetPoint("BOTTOMRIGHT", -16, 90)
+    listPanel:SetBackdrop(PANEL_BACKDROP)
+    listPanel:SetBackdropColor(0, 0, 0, 0.6)
+
+    local scroll = CreateFrame("ScrollFrame", "GManagerBLScroll", listPanel, "FauxScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 4, -4)
+    scroll:SetPoint("BOTTOMRIGHT", -26, 4)
+    scroll:SetScript("OnVerticalScroll", function(self, offset)
+        FauxScrollFrame_OnVerticalScroll(self, offset, BL_ROW_HEIGHT, function() UI:RefreshBlacklistWindow() end)
+    end)
+
+    -- Row pool (create more than visible so we can handle taller windows / scrolling)
+    for i = 1, MAX_BL_ROWS do
+        local rowY = -((i - 1) * BL_ROW_HEIGHT) - 1
+
+        local row = listPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row:SetPoint("TOPLEFT", scroll, "TOPLEFT", 6, rowY)
+        row:SetPoint("RIGHT", scroll, "RIGHT", -58, 0)
+        row:SetHeight(BL_ROW_HEIGHT)
+        row:SetJustifyH("LEFT")
+
+        local remBtn = CreateFrame("Button", nil, listPanel, "UIPanelButtonTemplate")
+        remBtn:SetSize(68, BL_ROW_HEIGHT - 2)
+        remBtn:SetText("|cFFFFCC00Rem|r")
+        local rfs = remBtn:GetFontString()
+        if rfs then rfs:SetTextColor(1, 0.8, 0) end
+        remBtn:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", -2, rowY)
+
+        blRows[i] = { label = row, rem = remBtn }
+    end
+
+    -- Autoresponse section
+    local arLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    arLabel:SetPoint("BOTTOMLEFT", 24, 72)
+    arLabel:SetText("|cFFFFCC00Autoresponse (sent to blacklisted players on trigger)|r")
+    arLabel:SetTextColor(1, 0.8, 0)
+
+    local arBg = CreateFrame("Frame", nil, f)
+    arBg:SetPoint("TOPLEFT", arLabel, "BOTTOMLEFT", -6, -2)
+    arBg:SetPoint("BOTTOMRIGHT", -18, 22)
+    arBg:SetBackdrop(PANEL_BACKDROP)
+    arBg:SetBackdropColor(0, 0, 0, 0.7)
+    arBg:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+
+    local arEdit = CreateFrame("EditBox", "GManagerBLReplyEdit", arBg)
+    arEdit:SetFontObject("ChatFontSmall")
+    arEdit:SetAutoFocus(false)
+    arEdit:SetMultiLine(true)
+    arEdit:SetMaxLetters(255)
+    arEdit:SetPoint("TOPLEFT", 6, -4)
+    arEdit:SetPoint("BOTTOMRIGHT", -6, 4)
+    arEdit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+    local saveReplyBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    saveReplyBtn:SetSize(70, 20)
+    saveReplyBtn:SetText("|cFFFFCC00Save|r")
+    local sfs = saveReplyBtn:GetFontString()
+    if sfs then sfs:SetTextColor(1, 0.8, 0) end
+    saveReplyBtn:SetPoint("BOTTOMRIGHT", -18, 6)
+    saveReplyBtn:SetScript("OnClick", function()
+        local txt = arEdit:GetText() or ""
+        addon:SetBlacklistReply(txt)
+        print("|cFFFFCC00GManager|r: Blacklist autoresponse saved.")
+    end)
+
+    f.arEdit = arEdit
+    f.scroll = scroll
+    f.nameInput = nameInput
+
+    _G["GManagerBlacklistFrame"] = f
+    table.insert(UISpecialFrames, "GManagerBlacklistFrame")
+
+    f:HookScript("OnShow", function()
+        positionBlacklistWindow(f)
+        UI:RefreshBlacklistWindow()
+    end)
+
+    blacklistFrame = f
+    return f
+end
+
+function UI:RefreshBlacklistWindow()
+    local f = blacklistFrame
+    if not f or not f:IsShown() then return end
+
+    -- populate reply
+    if f.arEdit and not f.arEdit:HasFocus() then
+        f.arEdit:SetText(addon:GetBlacklistReply() or "")
+    end
+
+    local data = addon:GetBlacklist() or {}
+    local count = #data
+
+    local scrollH = (f.scroll and f.scroll:GetHeight()) or 290
+    local visible = math.max(1, math.floor((scrollH + 2) / BL_ROW_HEIGHT))
+    visible = math.min(visible, MAX_BL_ROWS)
+
+    FauxScrollFrame_Update(f.scroll, count, visible, BL_ROW_HEIGHT)
+    local offset = FauxScrollFrame_GetOffset(f.scroll)
+
+    for i = 1, MAX_BL_ROWS do
+        local row = blRows[i]
+        if not row then break end
+
+        if i > visible then
+            row.label:Hide()
+            row.rem:Hide()
+            row.rem:SetScript("OnClick", nil)
+        else
+            local idx = i + offset
+            local item = data[idx]
+            if not item then
+                row.label:SetText("")
+                row.label:Hide()
+                row.rem:Hide()
+                row.rem:SetScript("OnClick", nil)
+            else
+                local display = item:sub(1,1):upper() .. item:sub(2)
+                row.label:SetText("|cffffffff" .. display .. "|r")
+                row.label:Show()
+
+                local nameKey = item
+                row.rem:Show()
+                row.rem:SetScript("OnClick", function()
+                    addon:RemoveFromBlacklist(nameKey)
+                    UI:RefreshBlacklistWindow()
+                end)
+            end
+        end
+    end
+end
+
+function UI:ShowBlacklistWindow()
+    local f = buildBlacklistWindow()
+    if not f then return end
+
+    positionBlacklistWindow(f)
+    f:Show()
+    if f.Raise then f:Raise() end
+    UI:RefreshBlacklistWindow()
+end
+
+function UI:ToggleBlacklistWindow()
+    local f = buildBlacklistWindow()
+    if not f then return end
+    if f:IsShown() then
+        f:Hide()
+    else
+        UI:ShowBlacklistWindow()
+    end
 end

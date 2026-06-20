@@ -3,7 +3,7 @@
 
 GManager = GManager or {}
 local addon = GManager
-addon.version = "1.3.2" -- 1.3.2: 0 minutes in Auto Group Invite = infinite (no timer) like Macro Spam total limit
+addon.version = "1.4" -- 1.4: Account-wide Blacklist for Auto Guild + Group Invites (with side window + autoresponse)
 
 local LOG_MAX = 15000        -- cap log size per guild to prevent unbounded growth
 local SNAPSHOT_DEBOUNCE = 2 -- seconds; coalesce burst GUILD_ROSTER_UPDATE events
@@ -48,6 +48,8 @@ local function ensureDB()
         -- 0 means infinite (no timer) for non-Permanent mode, matching spam total limit
     end
     if not GManagerDB.spamTotalMinutes then GManagerDB.spamTotalMinutes = 0 end
+    if type(GManagerDB.blacklist) ~= "table" then GManagerDB.blacklist = {} end
+    if GManagerDB.blacklistReply == nil then GManagerDB.blacklistReply = "You are currently blacklisted from auto-invites." end
 end
 
 -- =========================================================
@@ -335,6 +337,56 @@ end
 function addon:IsWhitelisted(name)
     local g = self:GetCurrentGuild()
     return g and g.whitelist and g.whitelist[name] or false
+end
+
+-- =========================================================
+-- Blacklist API (account-wide, used by both Auto Guild Invite and Auto Group Invite)
+-- =========================================================
+function addon:AddToBlacklist(name)
+    if not name or name == "" then return false end
+    GManagerDB.blacklist = GManagerDB.blacklist or {}
+    local clean = strsplit("-", name or ""):lower()
+    if clean == "" then return false end
+    GManagerDB.blacklist[clean] = true
+    if addon.UI and addon.UI.RefreshBlacklistWindow then
+        addon.UI:RefreshBlacklistWindow()
+    end
+    return true
+end
+
+function addon:RemoveFromBlacklist(name)
+    if not name or not GManagerDB or not GManagerDB.blacklist then return end
+    local clean = strsplit("-", name or ""):lower()
+    GManagerDB.blacklist[clean] = nil
+    if addon.UI and addon.UI.RefreshBlacklistWindow then
+        addon.UI:RefreshBlacklistWindow()
+    end
+end
+
+function addon:IsBlacklisted(name)
+    if not name or not GManagerDB or not GManagerDB.blacklist then return false end
+    local clean = strsplit("-", name or ""):lower()
+    return GManagerDB.blacklist[clean] == true
+end
+
+function addon:GetBlacklist()
+    if not GManagerDB or not GManagerDB.blacklist then return {} end
+    local list = {}
+    for k in pairs(GManagerDB.blacklist) do
+        table.insert(list, k)
+    end
+    table.sort(list)
+    return list
+end
+
+function addon:GetBlacklistReply()
+    return (GManagerDB and GManagerDB.blacklistReply) or ""
+end
+
+function addon:SetBlacklistReply(text)
+    if GManagerDB then
+        GManagerDB.blacklistReply = text or ""
+    end
 end
 
 -- =========================================================
@@ -709,6 +761,15 @@ backend:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4, arg5,
             
             -- Check for trigger phrase FIRST
             if conf.phrase and conf.phrase ~= "" and containsTriggerWord(msg, conf.phrase) then
+                -- Blacklist check (account-wide, applies to Guild Invite triggers)
+                if addon:IsBlacklisted(sender) then
+                    local breply = addon:GetBlacklistReply()
+                    if breply and breply ~= "" then
+                        SendChatMessage(breply, "WHISPER", nil, sender)
+                    end
+                    return -- do not proceed to invite or off-reply
+                end
+
                 if conf.enabled then
                     local cleanSender = strsplit("-", sender)
                     
@@ -738,6 +799,13 @@ backend:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4, arg5,
         if addon.groupInviteActive then
             local groupPhrase = GManagerDB and GManagerDB.autoInvite and GManagerDB.autoInvite.groupinv or ""
             if containsTriggerWord(msg, groupPhrase) then
+                if addon:IsBlacklisted(sender) then
+                    local breply = addon:GetBlacklistReply()
+                    if breply and breply ~= "" then
+                        SendChatMessage(breply, "WHISPER", nil, sender)
+                    end
+                    return
+                end
                 InviteUnit(sender)
             end
         end
@@ -747,6 +815,43 @@ end)
 -- Slash commands
 SLASH_GMANAGER1 = "/gmanager"
 SLASH_GMANAGER2 = "/gm"
-SlashCmdList["GMANAGER"] = function()
-    if addon.UI and addon.UI.Toggle then addon.UI:Toggle() end
+SlashCmdList["GMANAGER"] = function(msg)
+    msg = msg or ""
+    local cmd, rest = string.match(msg, "^(%S+)%s*(.*)$")
+    cmd = (cmd or ""):lower()
+    local arg = rest or ""
+
+    if cmd == "" or cmd == "ui" or cmd == "toggle" then
+        if addon.UI and addon.UI.Toggle then addon.UI:Toggle() end
+    elseif cmd == "bladd" or cmd == "addbl" or cmd == "blackadd" then
+        if arg ~= "" then
+            if addon.AddToBlacklist then
+                addon:AddToBlacklist(arg)
+                print("|cFFFFCC00GManager|r: Added |cffffffff" .. arg .. "|r to blacklist.")
+            end
+        else
+            print("|cFFFFCC00GManager|r: Usage: /gm bladd PlayerName")
+        end
+    elseif cmd == "bl" or cmd == "blist" or cmd == "blacklist" or cmd == "black" then
+        if addon.GetBlacklist then
+            local list = addon:GetBlacklist()
+            if #list == 0 then
+                print("|cFFFFCC00GManager|r: Blacklist is empty.")
+            else
+                local displayList = {}
+                for _, n in ipairs(list) do
+                    table.insert(displayList, n:sub(1,1):upper() .. n:sub(2))
+                end
+                print("|cFFFFCC00GManager|r: Blacklist (" .. #list .. "): |cffffffff" .. table.concat(displayList, ", ") .. "|r")
+            end
+        end
+    elseif cmd == "help" then
+        print("|cFFFFCC00GManager commands:|r")
+        print("  /gm or /gmanager - Toggle main window")
+        print("  /gm bladd <name> - Add player to blacklist (Auto Guild/Group Invite)")
+        print("  /gm bl or /gm blacklist - Show current blacklist in chat")
+    else
+        -- unknown, just toggle UI
+        if addon.UI and addon.UI.Toggle then addon.UI:Toggle() end
+    end
 end
