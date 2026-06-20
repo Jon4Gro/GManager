@@ -2,7 +2,7 @@
 ## Title: |cFFFFCC00GManager|r
 ## Notes: Wrath 3.3.5a guild Manger - Roster, Event Log, Alts, Macros, Mass Promote, Kick, Invite and Flood
 ## Refined by Sam
-## Version: 1.4
+## Version: 1.5
 ## SavedVariables: GManagerDB
 ## SavedVariablesPerCharacter: GManagerCharDB
 

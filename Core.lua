@@ -3,7 +3,7 @@
 
 GManager = GManager or {}
 local addon = GManager
-addon.version = "1.4" -- 1.4: Account-wide Blacklist for Auto Guild + Group Invites (with side window + autoresponse)
+addon.version = "1.5" -- 1.5: Blacklist height cut, BlacklistDetail (notes + remove), Ban Member menu, Auto Ban on Leave checkbox + auto notes
 
 local LOG_MAX = 15000        -- cap log size per guild to prevent unbounded growth
 local SNAPSHOT_DEBOUNCE = 2 -- seconds; coalesce burst GUILD_ROSTER_UPDATE events
@@ -50,6 +50,13 @@ local function ensureDB()
     if not GManagerDB.spamTotalMinutes then GManagerDB.spamTotalMinutes = 0 end
     if type(GManagerDB.blacklist) ~= "table" then GManagerDB.blacklist = {} end
     if GManagerDB.blacklistReply == nil then GManagerDB.blacklistReply = "You are currently blacklisted from auto-invites." end
+    if GManagerDB.autoBanOnLeave == nil then GManagerDB.autoBanOnLeave = false end
+    -- migrate old boolean blacklist entries to string notes ("" = no note)
+    for k, v in pairs(GManagerDB.blacklist) do
+        if type(v) == "boolean" then
+            GManagerDB.blacklist[k] = ""
+        end
+    end
 end
 
 -- =========================================================
@@ -264,7 +271,12 @@ local function diffSnapshots(old, new, guild)
 
     for name in pairs(old) do
         if not new[name] then
-            guild.pendingLeaves[name] = guild.pendingLeaves[name] or now
+            if not guild.pendingLeaves[name] then
+                guild.pendingLeaves[name] = now
+                delayCall(LEAVE_GRACE_SECONDS + 2, function()
+                    if IsInGuild() then GuildRoster() end
+                end)
+            end
         end
     end
 
@@ -342,14 +354,24 @@ end
 -- =========================================================
 -- Blacklist API (account-wide, used by both Auto Guild Invite and Auto Group Invite)
 -- =========================================================
-function addon:AddToBlacklist(name)
+function addon:AddToBlacklist(name, note)
     if not name or name == "" then return false end
     GManagerDB.blacklist = GManagerDB.blacklist or {}
     local clean = strsplit("-", name or ""):lower()
     if clean == "" then return false end
-    GManagerDB.blacklist[clean] = true
+    local prev = GManagerDB.blacklist[clean]
+    if note and note ~= "" then
+        GManagerDB.blacklist[clean] = note
+    else
+        if prev == nil or type(prev) == "boolean" then
+            GManagerDB.blacklist[clean] = ""
+        end
+    end
     if addon.UI and addon.UI.RefreshBlacklistWindow then
         addon.UI:RefreshBlacklistWindow()
+    end
+    if addon.UI and addon.UI.RefreshBlacklistDetail then
+        addon.UI:RefreshBlacklistDetail()
     end
     return true
 end
@@ -361,12 +383,15 @@ function addon:RemoveFromBlacklist(name)
     if addon.UI and addon.UI.RefreshBlacklistWindow then
         addon.UI:RefreshBlacklistWindow()
     end
+    if addon.UI and addon.UI.HideBlacklistDetail then
+        addon.UI:HideBlacklistDetail()
+    end
 end
 
 function addon:IsBlacklisted(name)
     if not name or not GManagerDB or not GManagerDB.blacklist then return false end
     local clean = strsplit("-", name or ""):lower()
-    return GManagerDB.blacklist[clean] == true
+    return GManagerDB.blacklist[clean] ~= nil
 end
 
 function addon:GetBlacklist()
@@ -379,6 +404,26 @@ function addon:GetBlacklist()
     return list
 end
 
+function addon:GetBlacklistNote(name)
+    if not name or not GManagerDB or not GManagerDB.blacklist then return "" end
+    local clean = strsplit("-", name or ""):lower()
+    local v = GManagerDB.blacklist[clean]
+    if type(v) == "string" then return v end
+    return ""
+end
+
+function addon:SetBlacklistNote(name, noteText)
+    if not name or name == "" then return end
+    GManagerDB.blacklist = GManagerDB.blacklist or {}
+    local clean = strsplit("-", name or ""):lower()
+    if clean == "" then return end
+    if GManagerDB.blacklist[clean] == nil then return end
+    GManagerDB.blacklist[clean] = noteText or ""
+    if addon.UI and addon.UI.RefreshBlacklistDetail then
+        addon.UI:RefreshBlacklistDetail()
+    end
+end
+
 function addon:GetBlacklistReply()
     return (GManagerDB and GManagerDB.blacklistReply) or ""
 end
@@ -387,6 +432,74 @@ function addon:SetBlacklistReply(text)
     if GManagerDB then
         GManagerDB.blacklistReply = text or ""
     end
+end
+
+function addon:ShareBlacklist()
+    if not GManagerDB or not GManagerDB.blacklist or next(GManagerDB.blacklist) == nil then
+        print("|cFFFFCC00GManager|r: Blacklist is empty.")
+        return
+    end
+
+    local entries = {}
+    for nameLower, note in pairs(GManagerDB.blacklist) do
+        local display = nameLower:sub(1,1):upper() .. nameLower:sub(2)
+        local noteStr = note or ""
+        if type(noteStr) ~= "string" then noteStr = "" end
+        local displayEntry
+        if noteStr ~= "" then
+            displayEntry = display .. " (" .. noteStr .. ")"
+        else
+            displayEntry = display
+        end
+        table.insert(entries, displayEntry)
+    end
+    table.sort(entries)
+
+    if #entries == 0 then
+        print("|cFFFFCC00GManager|r: Blacklist is empty.")
+        return
+    end
+
+    -- Send header immediately
+    SendChatMessage("GManager Blacklist share:", "OFFICER")
+
+    -- Build batched content messages (packed with || )
+    local blMessages = {}
+    local current = "GManager BL: "
+    local MAX_MSG_LEN = 220
+    for i, entry in ipairs(entries) do
+        local sep = (#current > #("GManager BL: ")) and "||" or ""
+        local addition = sep .. entry
+        if #current + #addition > MAX_MSG_LEN then
+            table.insert(blMessages, current)
+            current = "GManager BL: " .. entry
+        else
+            current = current .. addition
+        end
+    end
+    if #current > #("GManager BL: ") then
+        table.insert(blMessages, current)
+    end
+
+    -- Send content with throttling: max 5 messages per ~2 seconds
+    local msgIndex = 1
+    local function sendBurst()
+        local sent = 0
+        while msgIndex <= #blMessages and sent < 5 do
+            SendChatMessage(blMessages[msgIndex], "OFFICER")
+            msgIndex = msgIndex + 1
+            sent = sent + 1
+        end
+        if msgIndex <= #blMessages then
+            delayCall(2.1, sendBurst)
+        end
+    end
+
+    if #blMessages > 0 then
+        sendBurst()
+    end
+
+    print("|cFFFFCC00GManager|r: Shared " .. #entries .. " blacklisted members (with notes) to Officer chat.")
 end
 
 -- =========================================================
@@ -548,7 +661,12 @@ local function scheduleDiff()
         local now = time()
         for name in pairs(guild.members) do
             if not snap[name] then
-                guild.pendingLeaves[name] = guild.pendingLeaves[name] or now
+                if not guild.pendingLeaves[name] then
+                    guild.pendingLeaves[name] = now
+                    delayCall(LEAVE_GRACE_SECONDS + 2, function()
+                        if IsInGuild() then GuildRoster() end
+                    end)
+                end
             end
         end
 
@@ -561,6 +679,17 @@ local function scheduleDiff()
                 })
                 guild.pendingLeaves[name] = nil
                 guild.members[name] = nil
+
+                -- Auto Ban on Leaving
+                if GManagerDB and GManagerDB.autoBanOnLeave then
+                    local officer = UnitName("player") or "System"
+                    local dateStr = date("%b %d %Y")
+                    local note = dateStr .. ": Quit Guild"
+                    if addon.AddToBlacklist then
+                        addon:AddToBlacklist(name, note)
+                    end
+                    print("|cFFFFCC00GManager|r: Auto-banned |cffffffff" .. tostring(name) .. "|r for leaving the guild.")
+                end
             end
         end
 
@@ -731,7 +860,8 @@ backend:RegisterEvent("ADDON_LOADED")
 backend:RegisterEvent("PLAYER_LOGIN")
 backend:RegisterEvent("GUILD_ROSTER_UPDATE")
 backend:RegisterEvent("CHAT_MSG_WHISPER")
-backend:RegisterEvent("WHO_LIST_UPDATE") 
+backend:RegisterEvent("WHO_LIST_UPDATE")
+backend:RegisterEvent("CHAT_MSG_OFFICER") 
 
 backend:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12)
     if event == "ADDON_LOADED" then
@@ -752,6 +882,42 @@ backend:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4, arg5,
         if IsInGuild() then scheduleDiff() end
     elseif event == "WHO_LIST_UPDATE" then
         addon:ProcessWhoLevelCheck() 
+    elseif event == "CHAT_MSG_OFFICER" then
+        local msg, sender = arg1, arg2
+        if not msg or not sender then return end
+
+        local cleanSender = strsplit("-", sender):lower()
+        local myName = (UnitName("player") or ""):lower()
+        if cleanSender == myName then return end  -- ignore our own share messages
+
+        if msg == "GManager Blacklist share:" then
+            print(string.format("|cFFFFCC00GManager|r: Received blacklist share from |cffffffff%s|r. Adding/updating entries.", sender or "?"))
+        elseif msg:match("^GManager BL: ") then
+            local rest = msg:sub(14):match("^%s*(.-)%s*$")
+            if rest and rest ~= "" then
+                -- Support batched: "Name1 (note)||Name2||Name3 (note with commas)"
+                local pos = 1
+                while true do
+                    local s, e = rest:find("||", pos, true)
+                    local part = s and rest:sub(pos, s-1) or rest:sub(pos)
+                    part = part:match("^%s*(.-)%s*$")
+                    if part and part ~= "" then
+                        local name, note = part:match("^([^%(]+)%s*%((.*)%)%s*$")
+                        if not name then
+                            name = part
+                            note = ""
+                        end
+                        name = name:match("^%s*(.-)%s*$")
+                        note = (note or ""):match("^%s*(.-)%s*$")
+                        if name ~= "" and addon.AddToBlacklist then
+                            addon:AddToBlacklist(name, note)
+                        end
+                    end
+                    if not s then break end
+                    pos = e + 1
+                end
+            end
+        end
     elseif event == "CHAT_MSG_WHISPER" then
         local msg, sender = arg1, arg2
 

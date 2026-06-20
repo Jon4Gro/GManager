@@ -1,4 +1,4 @@
-# **GManager (v1.4)**
+# **GManager (v1.5)**
 
 GManager is an all-in-one Guild Management addon natively engineered for **World of Warcraft: Wrath of the Lich King (Patch 3.3.5a)**. Built on the classic frame API (`CreateFrame`, `GuildRosterInfo`, `SetWhoToUI`, `FauxScrollFrame`, `EasyMenu` context menus, etc.) it delivers high-volume guild ops without tainting the default UI.
 
@@ -9,12 +9,43 @@ Features include deep event logging, alt-character mapping, channel-bound macros
 * **Blizzard GuildFrame Offline Bug**: With GManager loaded the stock `GuildRosterFrame` can get stuck defaulting to "Show Offline Members" after any sort click.  
 * **GManager Roster Tab to the Rescue**: Our custom `ROSTER` view (powered by `collectRosterRows`, live `rosterPlayerSearch` / `rosterNoteSearch` / `rosterOfflineDaysSearch` filters, and `ROSTER_COLS` layout) completely replaces the need to fight the default frame. Right-click context menus (`showRosterContextMenu`) give instant whitelist, promote, demote, whisper and group invite actions.
 
+## **What's New in v1.5**
+
+* **BlacklistDetail Window**: The main Blacklist window height was reduced. The "Remove" button was moved into a new **BlacklistDetail** panel shown below the list:
+  - Displays the selected player's name
+  - Remove button on the right
+  - Local notes editbox (200 char limit, multiline support)
+
+* **Ban Member Right-Click Option** (Roster context menu):
+  - Requires confirmation
+  - Kicks the member **and** adds them to the blacklist
+  - Automatically writes an officer note in the format: `OfficerName MMM DD YYYY: banned`
+
+* **Auto Ban on Leaving** (Settings checkbox above Blacklist button):
+  - Automatically adds players who leave the guild to the blacklist
+  - Note format: `MMM DD YYYY: Quit Guild`
+
+* **Share Blacklist to Officer Chat**:
+  - New button above "Auto Ban on Leaving"
+  - Shares all blacklisted members + their notes via in-game Officer chat
+  - Addon listens on Officer chat and automatically **adds/updates** received entries (with notes)
+
+* **Roster View Enhancement**:
+  - Matching criteria counter (from Ranks view) now also shown below the right header in Roster view, reflecting current displayed members.
+
+* **Various UI Polish**:
+  - Blacklist and detail editboxes limited to 200 characters
+  - Improved multiline support and sizing for Autoresponse + Local Notes
+  - Height adjustments across Blacklist-related windows
+
 ## **What's New in v1.4**
 
 * **Account-Wide Blacklist for Auto Invites**: A single blacklist (saved in `GManagerDB`) now protects **both** Auto Guild Invite and Auto Group Invite. Blacklisted players are silently blocked from triggering invites.
 
 * **Blacklist Management Window**: New **Blacklist...** button in the bottom-right corner of the Settings tab opens a dedicated side window:
-  - Initially Docked to the **right side** of the main GManager window
+  - Docked to the **right side** of the main GManager window
+  - Height matches the main window
+  - Width set to main width − 30 (390px)
   - Add player names via input box (Enter or Add button supported)
   - Easy removal with **Rem** buttons next to each entry
   - Editable **Autoresponse** — a custom message sent to blacklisted players when they whisper a trigger phrase
@@ -31,7 +62,7 @@ Features include deep event logging, alt-character mapping, channel-bound macros
 ### **🛡️ Whitelisting**
 Protected members (green `[W]` tag in roster rows) are skipped by every mass operation (`ProcessBatch`, mass kick, mass promote). Toggle via right-click context menu or the whitelist API in `Core.lua`.
 
-### **🛑 Blacklist (New in v1.4)**
+### **🛑 Blacklist**
 Account-wide list that blocks players from both Auto Guild Invite and Auto Group Invite. 
 - Add/remove via the Settings → Blacklist... window (docked to the right)
 - Optional autoresponse sent to blacklisted players
@@ -92,7 +123,7 @@ Access with `/gm` or `/gmanager`. The main frame (`GManagerMainFrame`) is movabl
 ## **Technical Information**
 
 * **Interface TOC**: 30300 (WotLK 3.3.5a native)
-* **Current Version**: 1.4 (see `addon.version` in `Core.lua`)
+* **Current Version**: 1.5 (see `addon.version` in `Core.lua`)
 * **SavedVariables**: `GManagerDB` (account) – guilds, macros, autoInvite config, batchSize, spamTotalMinutes, minimap settings, **blacklist**, **blacklistReply**
 * **SavedVariablesPerCharacter**: `GManagerCharDB` – open/close with guild, massPromote history
 * **Files**: `Core.lua`, `UI.lua`, `Roster.lua`
@@ -104,4 +135,4 @@ GManager gives you serious power. The new Blacklist is a powerful tool to protec
 
 ---
 
-*Refined for WotLK 3.3.5a – pure Lua, no external dependencies. v1.4 — Account-wide Blacklist with side window, autoresponse, and slash commands.*
+*Refined for WotLK 3.3.5a – pure Lua, no external dependencies. v1.5 — BlacklistDetail, Ban Member, Auto Ban on Leave, Officer Chat share/listen sync.*

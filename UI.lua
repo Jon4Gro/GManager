@@ -196,6 +196,30 @@ local function showRosterContextMenu(name)
             disabled = isSelf,
             func = function() if InviteUnit then InviteUnit(name) end end,
         },
+        {
+            text = "Ban Member",
+            notCheckable = true,
+            disabled = isSelf,
+            func = function()
+                StaticPopupDialogs["GManager_CONFIRM_BAN"] = {
+                    text = "Ban |cffffff00" .. name .. "|r ?\nThis will KICK the member and add them to the Blacklist.",
+                    button1 = "BAN (Kick + Blacklist)", button2 = "Cancel",
+                    OnAccept = function()
+                        local officer = UnitName("player") or "Officer"
+                        local dateStr = date("%b %d %Y")
+                        local note = officer .. " " .. dateStr .. ": banned"
+                        if GuildUninvite then GuildUninvite(name) end
+                        if addon.AddToBlacklist then
+                            addon:AddToBlacklist(name, note)
+                        end
+                        if addon.RequestRosterAfterAction then addon:RequestRosterAfterAction()
+                        else GuildRoster() end
+                    end,
+                    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+                }
+                StaticPopup_Show("GManager_CONFIRM_BAN")
+            end,
+        },
         { text = "Cancel", notCheckable = true, func = function() end },
     }
     EasyMenu(menu, contextMenuFrame, "cursor", 0, 0, "MENU")
@@ -1376,6 +1400,40 @@ local function build()
     f.groupInviteBg:SetPoint("BOTTOMRIGHT", f.groupInviteEditBox, "BOTTOMRIGHT", 6, -13)
     f.groupInviteBg:SetFrameLevel(math.max(0, f.groupInviteCheck:GetFrameLevel() - 1))
 
+    -- Share Blacklist button (above Auto Ban on Leaving)
+    f.shareBlacklistBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.shareBlacklistBtn:SetSize(140, 20)
+    f.shareBlacklistBtn:SetPoint("BOTTOMRIGHT", -18, 72)
+    f.shareBlacklistBtn:SetText("|cFFFFCC00Share to Officer|r")
+    local sfs = f.shareBlacklistBtn:GetFontString()
+    if sfs then sfs:SetTextColor(1, 0.8, 0) end
+    f.shareBlacklistBtn:SetScript("OnClick", function()
+        if addon.ShareBlacklist then
+            addon:ShareBlacklist()
+        end
+    end)
+    f.shareBlacklistBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("|cFFFFCC00GManager|r: Share Blacklisted Members")
+        GameTooltip:AddLine("Shares all blacklisted players + their notes", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("via Officer chat (does not delete or modify).", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    f.shareBlacklistBtn:SetScript("OnLeave", function()
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+
+    -- Auto Ban on Leaving (checkbox above Blacklist button in Settings)
+    f.autoBanLeaveCB = CreateFrame("CheckButton", "GManagerAutoBanLeaveCB", f, "OptionsBaseCheckButtonTemplate")
+    f.autoBanLeaveCB:SetSize(20, 20)
+    f.autoBanLeaveCB:SetPoint("BOTTOMRIGHT", -18, 46)
+    f.autoBanLeaveCB:SetScript("OnClick", function(self)
+        if GManagerDB then GManagerDB.autoBanOnLeave = self:GetChecked() and true or false end
+    end)
+    f.autoBanLeaveLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.autoBanLeaveLabel:SetPoint("RIGHT", f.autoBanLeaveCB, "LEFT", -4, 0)
+    f.autoBanLeaveLabel:SetText("Auto Ban on Leaving")
+
     -- Blacklist button (bottom-right corner of Settings view only)
     f.blacklistBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     f.blacklistBtn:SetSize(130, 24)
@@ -1480,12 +1538,13 @@ local function collectRanksRows()
     local rows = {}
     if not guild or not frame or not frame.rankRows then return rows end
 
+    local numRanks = GuildControlGetNumRanks() or 0
     local n = GetNumGuildMembers() or 0
     for j = 1, n do
         local name, rank, rankIndex, level, _, _, note, officerNote, isOnline, _, classFile = GetGuildRosterInfo(j)
         if name then
             local rowUI = frame.rankRows[rankIndex + 1]
-            if rowUI and rowUI.frame:IsShown() and rowUI.cb:GetChecked() then
+            if rowUI and rowUI.cb:GetChecked() and (rankIndex + 1) <= numRanks and (rankIndex + 1 > 1) then
                 local minDays = tonumber(rowUI.minDays:GetText()) or 0
                 local maxOff = tonumber(rowUI.maxOff:GetText())
 
@@ -1903,6 +1962,9 @@ function UI:Refresh()
     if f.groupInviteMinLabel then setVis(f.groupInviteMinLabel, groupInviteMode) end
     if f.groupInviteMinutes then setVis(f.groupInviteMinutes, groupInviteMode) end
     if f.groupInviteBg then setVis(f.groupInviteBg, groupInviteMode) end
+    setVis(f.shareBlacklistBtn, settingsMode)
+    setVis(f.autoBanLeaveCB, settingsMode)
+    setVis(f.autoBanLeaveLabel, settingsMode)
     setVis(f.blacklistBtn, settingsMode)
 
     if settingsMode and GManagerDB then
@@ -1961,6 +2023,9 @@ function UI:Refresh()
         if f.showMinimapCB then
             f.showMinimapCB:SetChecked(GManagerDB.showMinimapButton ~= false)
         end
+        if f.autoBanLeaveCB then
+            f.autoBanLeaveCB:SetChecked(GManagerDB.autoBanOnLeave == true)
+        end
         if f.minimapRotSlider then
             local r = GManagerDB.minimapRotation or 0
             f.minimapRotSlider:SetValue(r)
@@ -1996,6 +2061,14 @@ function UI:Refresh()
     else
         data = collectAltsRows()
         f.rightHeader:SetText(("|cffffffff%d|r mappings"):format(#data))
+    end
+
+    if rosterMode then
+        f.rrightHeader:SetText(("|cffffffff%d|r displayed members"):format(#data))
+        f.rrightHeader:Show()
+    else
+        f.rrightHeader:SetText("")
+        f.rrightHeader:Hide()
     end
 
     if macrosMode then
@@ -2225,25 +2298,34 @@ end
 function UI:Hide()
     if frame then frame:Hide() end
     if blacklistFrame then blacklistFrame:Hide() end
+    if blacklistDetailFrame then blacklistDetailFrame:Hide() end
+    selectedBlacklistName = nil
 end
 
 -- =========================================================
 -- Blacklist Management Window (account-wide, for Auto Group + Guild Invite)
 -- =========================================================
 local blacklistFrame
+local blacklistDetailFrame
 local blRows = {}
 local BL_ROW_HEIGHT = 18
 local MAX_BL_ROWS = 25
+local selectedBlacklistName = nil
 
 local function positionBlacklistWindow(f)
     if frame and frame:IsShown() then
         f:ClearAllPoints()
         f:SetPoint("TOPLEFT", frame, "TOPRIGHT", 6, 0)
-        f:SetHeight(frame:GetHeight())
+        local h = (frame:GetHeight() or 300) - 170
+        if h < 260 then h = 260 end
+        f:SetHeight(h)
         f:SetWidth(390)
     else
         f:ClearAllPoints()
         f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+    end
+    if blacklistDetailFrame and blacklistDetailFrame:IsShown() then
+        positionBlacklistDetail(blacklistDetailFrame)
     end
 end
 
@@ -2251,8 +2333,8 @@ local function buildBlacklistWindow()
     if blacklistFrame then return blacklistFrame end
 
     local f = CreateFrame("Frame", "GManagerBlacklistFrame", UIParent)
-    f:SetSize(390, 480)
-    f:SetPoint("CENTER", 0, 60)
+    f:SetSize(390, 330)
+    f:SetPoint("CENTER", 0, 50)
     f:SetBackdrop(BACKDROP)
     f:SetBackdropColor(0, 0, 0, 1)
     f:SetMovable(true)
@@ -2324,32 +2406,47 @@ local function buildBlacklistWindow()
     -- Row pool (create more than visible so we can handle taller windows / scrolling)
     for i = 1, MAX_BL_ROWS do
         local rowY = -((i - 1) * BL_ROW_HEIGHT) - 1
+        local ii = i   -- capture for closure
 
         local row = listPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row:SetPoint("TOPLEFT", scroll, "TOPLEFT", 6, rowY)
-        row:SetPoint("RIGHT", scroll, "RIGHT", -58, 0)
+        row:SetPoint("RIGHT", scroll, "RIGHT", -4, 0)
         row:SetHeight(BL_ROW_HEIGHT)
         row:SetJustifyH("LEFT")
 
-        local remBtn = CreateFrame("Button", nil, listPanel, "UIPanelButtonTemplate")
-        remBtn:SetSize(68, BL_ROW_HEIGHT - 2)
-        remBtn:SetText("|cFFFFCC00Rem|r")
-        local rfs = remBtn:GetFontString()
-        if rfs then rfs:SetTextColor(1, 0.8, 0) end
-        remBtn:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", -2, rowY)
+        -- Clickable area for selection (opens BlacklistDetail below)
+        local hit = CreateFrame("Button", nil, listPanel)
+        hit:SetPoint("TOPLEFT", row, "TOPLEFT", -2, 0)
+        hit:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 2, 0)
+        local hl = hit:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+        hl:SetBlendMode("ADD")
+        hl:SetAllPoints(hit)
 
-        blRows[i] = { label = row, rem = remBtn }
+        hit:SetScript("OnClick", function()
+            local dataNow = addon:GetBlacklist() or {}
+            local offset = (scroll and FauxScrollFrame_GetOffset(scroll)) or 0
+            local idx = ii + offset
+            local item = dataNow[idx]
+            if item then
+                selectedBlacklistName = item
+                UI:ShowBlacklistDetail(selectedBlacklistName)
+                UI:RefreshBlacklistWindow()
+            end
+        end)
+
+        blRows[i] = { label = row, hit = hit }
     end
 
     -- Autoresponse section
     local arLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    arLabel:SetPoint("BOTTOMLEFT", 24, 72)
+    arLabel:SetPoint("BOTTOMLEFT", 24, 80)
     arLabel:SetText("|cFFFFCC00Autoresponse (sent to blacklisted players on trigger)|r")
     arLabel:SetTextColor(1, 0.8, 0)
 
     local arBg = CreateFrame("Frame", nil, f)
     arBg:SetPoint("TOPLEFT", arLabel, "BOTTOMLEFT", -6, -2)
-    arBg:SetPoint("BOTTOMRIGHT", -18, 22)
+    arBg:SetPoint("BOTTOMRIGHT", -18, 20)
     arBg:SetBackdrop(PANEL_BACKDROP)
     arBg:SetBackdropColor(0, 0, 0, 0.7)
     arBg:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
@@ -2358,7 +2455,7 @@ local function buildBlacklistWindow()
     arEdit:SetFontObject("ChatFontSmall")
     arEdit:SetAutoFocus(false)
     arEdit:SetMultiLine(true)
-    arEdit:SetMaxLetters(255)
+    arEdit:SetMaxLetters(200)
     arEdit:SetPoint("TOPLEFT", 6, -4)
     arEdit:SetPoint("BOTTOMRIGHT", -6, 4)
     arEdit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
@@ -2386,6 +2483,10 @@ local function buildBlacklistWindow()
         positionBlacklistWindow(f)
         UI:RefreshBlacklistWindow()
     end)
+    f:HookScript("OnHide", function()
+        if blacklistDetailFrame then blacklistDetailFrame:Hide() end
+        selectedBlacklistName = nil
+    end)
 
     blacklistFrame = f
     return f
@@ -2403,7 +2504,19 @@ function UI:RefreshBlacklistWindow()
     local data = addon:GetBlacklist() or {}
     local count = #data
 
-    local scrollH = (f.scroll and f.scroll:GetHeight()) or 290
+    -- clear stale selection if removed
+    if selectedBlacklistName then
+        local stillThere = false
+        for _, n in ipairs(data) do
+            if n == selectedBlacklistName then stillThere = true; break end
+        end
+        if not stillThere then
+            selectedBlacklistName = nil
+            if blacklistDetailFrame then blacklistDetailFrame:Hide() end
+        end
+    end
+
+    local scrollH = (f.scroll and f.scroll:GetHeight()) or 150
     local visible = math.max(1, math.floor((scrollH + 2) / BL_ROW_HEIGHT))
     visible = math.min(visible, MAX_BL_ROWS)
 
@@ -2416,27 +2529,23 @@ function UI:RefreshBlacklistWindow()
 
         if i > visible then
             row.label:Hide()
-            row.rem:Hide()
-            row.rem:SetScript("OnClick", nil)
+            if row.hit then row.hit:Hide() end
         else
             local idx = i + offset
             local item = data[idx]
             if not item then
                 row.label:SetText("")
                 row.label:Hide()
-                row.rem:Hide()
-                row.rem:SetScript("OnClick", nil)
+                if row.hit then row.hit:Hide() end
             else
                 local display = item:sub(1,1):upper() .. item:sub(2)
-                row.label:SetText("|cffffffff" .. display .. "|r")
+                if selectedBlacklistName and selectedBlacklistName == item then
+                    row.label:SetText("|cffffcc00> " .. display .. "|r")
+                else
+                    row.label:SetText("|cffffffff" .. display .. "|r")
+                end
                 row.label:Show()
-
-                local nameKey = item
-                row.rem:Show()
-                row.rem:SetScript("OnClick", function()
-                    addon:RemoveFromBlacklist(nameKey)
-                    UI:RefreshBlacklistWindow()
-                end)
+                if row.hit then row.hit:Show() end
             end
         end
     end
@@ -2450,6 +2559,9 @@ function UI:ShowBlacklistWindow()
     f:Show()
     if f.Raise then f:Raise() end
     UI:RefreshBlacklistWindow()
+    if blacklistDetailFrame and blacklistDetailFrame:IsShown() then
+        positionBlacklistDetail(blacklistDetailFrame)
+    end
 end
 
 function UI:ToggleBlacklistWindow()
@@ -2461,3 +2573,145 @@ function UI:ToggleBlacklistWindow()
         UI:ShowBlacklistWindow()
     end
 end
+
+-- =========================================================
+-- Blacklist Detail sub-window (shown below Blacklist list)
+-- Shows selected name + Remove button (right) + Notes editbox
+-- =========================================================
+local function positionBlacklistDetail(f)
+    local bl = blacklistFrame
+    if bl and bl:IsShown() then
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", bl, "BOTTOMLEFT", 0, -4)
+        f:SetWidth(bl:GetWidth() or 390)
+    else
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", UIParent, "CENTER", -60, -80)
+    end
+end
+
+local function buildBlacklistDetail()
+    if blacklistDetailFrame then return blacklistDetailFrame end
+
+    local f = CreateFrame("Frame", "GManagerBlacklistDetailFrame", UIParent)
+    f:SetSize(390, 145)
+    f:SetBackdrop(BACKDROP)
+    f:SetBackdropColor(0, 0, 0, 1)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:SetClampedToScreen(true)
+    f:SetFrameStrata("HIGH")
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:Hide()
+
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", 2, 2)
+
+    -- Name on left
+    f.nameText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    f.nameText:SetPoint("TOPLEFT", 16, -18)
+    f.nameText:SetText("")
+
+    -- Remove button on right side (same row)
+    f.removeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.removeBtn:SetSize(80, 22)
+    f.removeBtn:SetText("|cFFFFCC00Remove|r")
+    local fs = f.removeBtn:GetFontString()
+    if fs then fs:SetTextColor(1, 0.8, 0) end
+    f.removeBtn:SetPoint("TOPRIGHT", -44, -18)
+    f.removeBtn:SetScript("OnClick", function()
+        if selectedBlacklistName then
+            addon:RemoveFromBlacklist(selectedBlacklistName)
+            selectedBlacklistName = nil
+            UI:RefreshBlacklistWindow()
+        end
+        f:Hide()
+    end)
+
+    -- Notes section
+    f.noteLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.noteLabel:SetPoint("TOPLEFT", 16, -46)
+    f.noteLabel:SetText("|cFFFFCC00Local Note:|r")
+
+    local noteBg = CreateFrame("Frame", nil, f)
+    noteBg:SetPoint("TOPLEFT", f.noteLabel, "BOTTOMLEFT", 0, -2)
+    noteBg:SetPoint("RIGHT", f.removeBtn, "RIGHT", 0, 0)
+    noteBg:SetHeight(60)
+    noteBg:SetBackdrop(PANEL_BACKDROP)
+    noteBg:SetBackdropColor(0, 0, 0, 0.7)
+    noteBg:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+
+    f.noteEdit = CreateFrame("EditBox", "GManagerBLDetailNote", noteBg)
+    f.noteEdit:SetFontObject("ChatFontSmall")
+    f.noteEdit:SetAutoFocus(false)
+    f.noteEdit:SetMultiLine(true)
+    f.noteEdit:SetMaxLetters(200)
+    f.noteEdit:SetPoint("TOPLEFT", 6, -2)
+    f.noteEdit:SetPoint("BOTTOMRIGHT", -4, 2)
+    f.noteEdit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.noteEdit:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    f.noteEdit:SetScript("OnEditFocusLost", function(self)
+        if selectedBlacklistName then
+            addon:SetBlacklistNote(selectedBlacklistName, self:GetText() or "")
+        end
+    end)
+
+    -- Small Save button for the Local Note (below the editbox)
+    local saveNoteBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    saveNoteBtn:SetSize(50, 18)
+    saveNoteBtn:SetText("|cFFFFCC00Save|r")
+    local nfs = saveNoteBtn:GetFontString()
+    if nfs then nfs:SetTextColor(1, 0.8, 0) end
+    saveNoteBtn:SetPoint("TOPRIGHT", noteBg, "BOTTOMRIGHT", 0, -2)
+    saveNoteBtn:SetScript("OnClick", function()
+        if selectedBlacklistName and f.noteEdit then
+            addon:SetBlacklistNote(selectedBlacklistName, f.noteEdit:GetText() or "")
+            f.noteEdit:ClearFocus()
+        end
+    end)
+
+    f:HookScript("OnShow", function()
+        positionBlacklistDetail(f)
+    end)
+
+    blacklistDetailFrame = f
+    return f
+end
+
+function UI:ShowBlacklistDetail(name)
+    if not name or name == "" then return end
+    local f = buildBlacklistDetail()
+    if not f then return end
+
+    selectedBlacklistName = name
+    f.nameText:SetText("|cffffffff" .. (name:sub(1,1):upper() .. name:sub(2)) .. "|r")
+
+    if f.noteEdit and not f.noteEdit:HasFocus() then
+        f.noteEdit:SetText(addon:GetBlacklistNote(name) or "")
+    end
+
+    positionBlacklistDetail(f)
+    f:Show()
+    if f.Raise then f:Raise() end
+end
+
+function UI:RefreshBlacklistDetail()
+    local f = blacklistDetailFrame
+    if not f or not f:IsShown() or not selectedBlacklistName then return end
+
+    f.nameText:SetText("|cffffffff" .. (selectedBlacklistName:sub(1,1):upper() .. selectedBlacklistName:sub(2)) .. "|r")
+    if f.noteEdit and not f.noteEdit:HasFocus() then
+        f.noteEdit:SetText(addon:GetBlacklistNote(selectedBlacklistName) or "")
+    end
+end
+
+function UI:HideBlacklistDetail()
+    if blacklistDetailFrame then
+        blacklistDetailFrame:Hide()
+    end
+    selectedBlacklistName = nil
+end
+
+
